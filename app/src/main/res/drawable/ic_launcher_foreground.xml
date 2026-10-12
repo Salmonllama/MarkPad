@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Stylized Notepad Container -->
+    <path
+        android:fillColor="#0D9488"
+        android:pathData="M30,26h48c3.3,0 6,2.7 6,6v44c0,3.3 -2.7,6 -6,6H30c-3.3,0 -6,-2.7 -6,-6V32c0,-3.3 2.7,-6 6,-6z" />
+    <!-- Notepad Header Bar -->
+    <path
+        android:fillColor="#14B8A6"
+        android:pathData="M24,32h60v6H24z" />
+    <!-- Markdown 'M' Logo -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,46h4v16h-4z M46,46h4v16h-4z M34,46l7,7 7,-7v5l-7,7 -7,-7z" />
+    <!-- Markdown Down Arrow '↓' -->
+    <path
+        android:fillColor="#CCFBF1"
+        android:pathData="M64,46h5v9h5l-7.5,7.5L59,55h5z" />
+</vector>
