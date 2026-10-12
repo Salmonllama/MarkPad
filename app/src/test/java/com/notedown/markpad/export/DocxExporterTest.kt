@@ -60,4 +60,51 @@ class DocxExporterTest {
         assertTrue("Contains bullet item", documentXml.contains("Item One"))
         assertTrue("Contains code content", documentXml.contains("val message = &quot;Hello&quot;") || documentXml.contains("val message = \"Hello\"") || documentXml.contains("&quot;Hello&quot;"))
     }
+
+    @Test
+    fun export_correctlyGeneratesDocxTableStructure() {
+        val note = Note(
+            id = "docx-table-test",
+            title = "Table Note",
+            content = """
+                # Performance Comparison
+
+                | Feature | Status | Impact |
+                | :--- | :---: | ---: |
+                | Caching | **Enabled** | High |
+                | Indexing | *Active* | Medium |
+            """.trimIndent(),
+            updatedAt = System.currentTimeMillis()
+        )
+
+        val exporter = DocxExporter()
+        val outputStream = ByteArrayOutputStream()
+        exporter.export(note, outputStream)
+
+        val bytes = outputStream.toByteArray()
+        assertTrue("Output should not be empty", bytes.isNotEmpty())
+
+        val zipEntries = mutableMapOf<String, String>()
+        ZipInputStream(ByteArrayInputStream(bytes)).use { zipIn ->
+            var entry = zipIn.nextEntry
+            while (entry != null) {
+                val content = zipIn.bufferedReader().readText()
+                zipEntries[entry.name] = content
+                entry = zipIn.nextEntry
+            }
+        }
+
+        val documentXml = zipEntries["word/document.xml"]
+        assertNotNull(documentXml)
+        assertTrue("Contains table element", documentXml!!.contains("<w:tbl>"))
+        assertTrue("Contains table header declaration", documentXml.contains("<w:tblHeader/>"))
+        assertTrue("Contains header cell text", documentXml.contains("Feature"))
+        assertTrue("Contains header cell text", documentXml.contains("Status"))
+        assertTrue("Contains header cell text", documentXml.contains("Impact"))
+        assertTrue("Contains body row text", documentXml.contains("Caching"))
+        assertTrue("Contains formatted bold cell text", documentXml.contains("Enabled"))
+        assertTrue("Contains left justification", documentXml.contains("<w:jc w:val=\"left\"/>"))
+        assertTrue("Contains center justification", documentXml.contains("<w:jc w:val=\"center\"/>"))
+        assertTrue("Contains right justification", documentXml.contains("<w:jc w:val=\"right\"/>"))
+    }
 }

@@ -54,6 +54,12 @@ class PdfExporter(
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             }
 
+            val tableHeaderPaint = TextPaint(textPaint).apply {
+                isAntiAlias = true
+                color = Color.rgb(20, 20, 20)
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            }
+
             val codePaint = Paint().apply {
                 isAntiAlias = true
                 color = Color.rgb(40, 40, 40)
@@ -261,6 +267,118 @@ class PdfExporter(
                             linePaint
                         )
                         currentY += 12f
+                    }
+                    is MarkdownNode.Table -> {
+                        if (node.headers.isNotEmpty()) {
+                            val colCount = node.headers.size
+                            val charCounts = node.headers.indices.map { colIdx ->
+                                val headerLen = node.headers[colIdx].length
+                                val maxRowLen = node.rows.maxOfOrNull { it.cells.getOrElse(colIdx) { "" }.length } ?: 0
+                                maxOf(headerLen, maxRowLen).coerceAtLeast(3)
+                            }
+                            val totalChars = charCounts.sum().toFloat()
+                            val minColWidth = 40f
+                            val colWidths = FloatArray(colCount)
+                            if (totalChars > 0 && contentWidth / colCount >= minColWidth) {
+                                for (c in 0 until colCount) {
+                                    colWidths[c] = (charCounts[c] / totalChars) * contentWidth
+                                }
+                                if (colWidths.any { it < minColWidth }) {
+                                    for (c in 0 until colCount) {
+                                        colWidths[c] = contentWidth / colCount
+                                    }
+                                }
+                            } else {
+                                for (c in 0 until colCount) {
+                                    colWidths[c] = contentWidth / colCount
+                                }
+                            }
+
+                            val colX = FloatArray(colCount)
+                            var accX = MARGIN_HORIZONTAL
+                            for (c in 0 until colCount) {
+                                colX[c] = accX
+                                accX += colWidths[c]
+                            }
+
+                            val cellPadH = 6f
+                            val cellPadV = 5f
+
+                            fun createCellLayout(
+                                text: String,
+                                isHeader: Boolean,
+                                colIdx: Int,
+                                availWidth: Float
+                            ): StaticLayout {
+                                val align = when (node.alignments.getOrElse(colIdx) { com.notedown.markpad.ui.markdown.TableAlignment.LEFT }) {
+                                    com.notedown.markpad.ui.markdown.TableAlignment.LEFT -> Layout.Alignment.ALIGN_NORMAL
+                                    com.notedown.markpad.ui.markdown.TableAlignment.CENTER -> Layout.Alignment.ALIGN_CENTER
+                                    com.notedown.markpad.ui.markdown.TableAlignment.RIGHT -> Layout.Alignment.ALIGN_OPPOSITE
+                                }
+                                val spans = InlineMarkdownParser.parse(text)
+                                val ssb = buildSpannable(spans)
+                                if (isHeader) {
+                                    ssb.setSpan(StyleSpan(Typeface.BOLD), 0, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                                }
+                                val paint = if (isHeader) tableHeaderPaint else textPaint
+                                return StaticLayout.Builder.obtain(ssb, 0, ssb.length, paint, maxOf(1, availWidth.toInt()))
+                                    .setAlignment(align)
+                                    .setLineSpacing(0f, 1.15f)
+                                    .setIncludePad(false)
+                                    .build()
+                            }
+
+                            fun drawTableRow(
+                                cells: List<String>,
+                                isHeader: Boolean,
+                                isAlternate: Boolean
+                            ) {
+                                val layouts = node.headers.indices.map { c ->
+                                    val cellText = cells.getOrElse(c) { "" }
+                                    val availW = colWidths[c] - (cellPadH * 2)
+                                    createCellLayout(cellText, isHeader, c, availW)
+                                }
+
+                                val maxCellH = layouts.maxOfOrNull { it.height.toFloat() } ?: 12f
+                                val rowHeight = maxCellH + (cellPadV * 2)
+
+                                checkPageBreak(rowHeight)
+
+                                val rowTop = currentY
+                                val rowBottom = currentY + rowHeight
+
+                                if (isHeader) {
+                                    bgPaint.color = Color.rgb(240, 242, 247)
+                                    canvas.drawRect(MARGIN_HORIZONTAL, rowTop, MARGIN_HORIZONTAL + contentWidth, rowBottom, bgPaint)
+                                } else if (isAlternate) {
+                                    bgPaint.color = Color.rgb(249, 250, 252)
+                                    canvas.drawRect(MARGIN_HORIZONTAL, rowTop, MARGIN_HORIZONTAL + contentWidth, rowBottom, bgPaint)
+                                }
+
+                                for (c in 0 until colCount) {
+                                    canvas.save()
+                                    canvas.translate(colX[c] + cellPadH, rowTop + cellPadV)
+                                    layouts[c].draw(canvas)
+                                    canvas.restore()
+                                }
+
+                                canvas.drawLine(MARGIN_HORIZONTAL, rowTop, MARGIN_HORIZONTAL + contentWidth, rowTop, linePaint)
+                                canvas.drawLine(MARGIN_HORIZONTAL, rowBottom, MARGIN_HORIZONTAL + contentWidth, rowBottom, linePaint)
+                                canvas.drawLine(MARGIN_HORIZONTAL, rowTop, MARGIN_HORIZONTAL, rowBottom, linePaint)
+                                canvas.drawLine(MARGIN_HORIZONTAL + contentWidth, rowTop, MARGIN_HORIZONTAL + contentWidth, rowBottom, linePaint)
+                                for (c in 1 until colCount) {
+                                    canvas.drawLine(colX[c], rowTop, colX[c], rowBottom, linePaint)
+                                }
+
+                                currentY += rowHeight
+                            }
+
+                            drawTableRow(node.headers, isHeader = true, isAlternate = false)
+                            node.rows.forEachIndexed { rIdx, row ->
+                                drawTableRow(row.cells, isHeader = false, isAlternate = rIdx % 2 == 1)
+                            }
+                            currentY += 10f
+                        }
                     }
                 }
             }

@@ -138,6 +138,9 @@ class DocxExporter : NoteExporter {
                 is MarkdownNode.HorizontalRule -> {
                     bodyContent.append("""<w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="CCCCCC"/></w:pBdr></w:pPr></w:p>""")
                 }
+                is MarkdownNode.Table -> {
+                    bodyContent.append(renderTableXml(node))
+                }
             }
         }
 
@@ -174,6 +177,93 @@ class DocxExporter : NoteExporter {
                 }
                 is com.notedown.markpad.ui.markdown.InlineSpan.Normal -> {
                     builder.append("""<w:r><w:t xml:space="preserve">${escapeXml(span.text)}</w:t></w:r>""")
+                }
+            }
+        }
+        return builder.toString()
+    }
+
+    private fun renderTableXml(table: MarkdownNode.Table): String {
+        if (table.headers.isEmpty()) return ""
+        val colCount = table.headers.size
+        val totalWidth = 9026 // Twips: A4 page width (11906) - 2 * 1440 margin
+        val colWidth = totalWidth / maxOf(1, colCount)
+
+        val gridBuilder = StringBuilder()
+        for (i in 0 until colCount) {
+            gridBuilder.append("""<w:gridCol w:w="$colWidth"/>""")
+        }
+
+        val rowsBuilder = StringBuilder()
+
+        // Header Row
+        val headerCellsBuilder = StringBuilder()
+        table.headers.forEachIndexed { colIdx, headerText ->
+            val alignment = table.alignments.getOrElse(colIdx) { com.notedown.markpad.ui.markdown.TableAlignment.LEFT }
+            val jcVal = when (alignment) {
+                com.notedown.markpad.ui.markdown.TableAlignment.LEFT -> "left"
+                com.notedown.markpad.ui.markdown.TableAlignment.CENTER -> "center"
+                com.notedown.markpad.ui.markdown.TableAlignment.RIGHT -> "right"
+            }
+            headerCellsBuilder.append(
+                """<w:tc><w:tcPr><w:tcW w:w="$colWidth" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="F2F4F7"/><w:tcMar><w:top w:w="120" w:type="dxa"/><w:bottom w:w="120" w:type="dxa"/><w:left w:w="160" w:type="dxa"/><w:right w:w="160" w:type="dxa"/></w:tcMar></w:tcPr><w:p><w:pPr><w:jc w:val="$jcVal"/></w:pPr>${renderTableHeaderRuns(headerText)}</w:p></w:tc>"""
+            )
+        }
+        rowsBuilder.append("""<w:tr><w:trPr><w:tblHeader/></w:trPr>$headerCellsBuilder</w:tr>""")
+
+        // Data Rows
+        table.rows.forEachIndexed { rowIndex, row ->
+            val rowCellsBuilder = StringBuilder()
+            val fillShade = if (rowIndex % 2 == 1) """<w:shd w:val="clear" w:color="auto" w:fill="F9FAFB"/>""" else ""
+            table.headers.indices.forEach { colIdx ->
+                val cellText = row.cells.getOrElse(colIdx) { "" }
+                val alignment = table.alignments.getOrElse(colIdx) { com.notedown.markpad.ui.markdown.TableAlignment.LEFT }
+                val jcVal = when (alignment) {
+                    com.notedown.markpad.ui.markdown.TableAlignment.LEFT -> "left"
+                    com.notedown.markpad.ui.markdown.TableAlignment.CENTER -> "center"
+                    com.notedown.markpad.ui.markdown.TableAlignment.RIGHT -> "right"
+                }
+                rowCellsBuilder.append(
+                    """<w:tc><w:tcPr><w:tcW w:w="$colWidth" w:type="dxa"/>$fillShade<w:tcMar><w:top w:w="120" w:type="dxa"/><w:bottom w:w="120" w:type="dxa"/><w:left w:w="160" w:type="dxa"/><w:right w:w="160" w:type="dxa"/></w:tcMar></w:tcPr><w:p><w:pPr><w:jc w:val="$jcVal"/></w:pPr>${renderParagraphRuns(cellText)}</w:p></w:tc>"""
+                )
+            }
+            rowsBuilder.append("""<w:tr>$rowCellsBuilder</w:tr>""")
+        }
+
+        return """
+            <w:tbl>
+              <w:tblPr>
+                <w:tblW w:w="$totalWidth" w:type="dxa"/>
+                <w:tblBorders>
+                  <w:top w:val="single" w:sz="4" w:space="0" w:color="D0D5DD"/>
+                  <w:left w:val="single" w:sz="4" w:space="0" w:color="D0D5DD"/>
+                  <w:bottom w:val="single" w:sz="4" w:space="0" w:color="D0D5DD"/>
+                  <w:right w:val="single" w:sz="4" w:space="0" w:color="D0D5DD"/>
+                  <w:insideH w:val="single" w:sz="4" w:space="0" w:color="E4E7EC"/>
+                  <w:insideV w:val="single" w:sz="4" w:space="0" w:color="E4E7EC"/>
+                </w:tblBorders>
+              </w:tblPr>
+              <w:tblGrid>$gridBuilder</w:tblGrid>
+              $rowsBuilder
+            </w:tbl>
+            <w:p><w:pPr><w:spacing w:after="160"/></w:pPr></w:p>
+        """.trimIndent()
+    }
+
+    private fun renderTableHeaderRuns(text: String): String {
+        val builder = StringBuilder()
+        val spans = com.notedown.markpad.ui.markdown.InlineMarkdownParser.parse(text)
+        for (span in spans) {
+            when (span) {
+                is com.notedown.markpad.ui.markdown.InlineSpan.Italic,
+                is com.notedown.markpad.ui.markdown.InlineSpan.BoldItalic -> {
+                    builder.append("""<w:r><w:rPr><w:b/><w:i/></w:rPr><w:t xml:space="preserve">${escapeXml(span.text)}</w:t></w:r>""")
+                }
+                is com.notedown.markpad.ui.markdown.InlineSpan.InlineCode -> {
+                    builder.append("""<w:r><w:rPr><w:b/><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/><w:shd w:val="clear" w:color="auto" w:fill="E9ECEF"/></w:rPr><w:t xml:space="preserve">${escapeXml(span.text)}</w:t></w:r>""")
+                }
+                else -> {
+                    builder.append("""<w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">${escapeXml(span.text)}</w:t></w:r>""")
                 }
             }
         }

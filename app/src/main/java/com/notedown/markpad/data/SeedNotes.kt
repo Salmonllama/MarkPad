@@ -73,12 +73,22 @@ object SeedNotes {
                 - **M3:** Live debounced syncing (150ms) to ensure zero editor input lag.
                 - **M4:** In-memory repository with clean domain separation for future Room integration.
 
+                ## Feature Status Matrix
+
+                | Capability | Status | Alignment | Performance |
+                | :--- | :---: | :---: | ---: |
+                | Markdown Tables | **Active** | Left | Instant (<16ms) |
+                | DOCX Export | **Native** | Center | Zero runtime overhead |
+                | PDF Export | **Direct** | Right | High-fidelity vector |
+                | Debounced Sync | *Active* | Right | 150ms latency |
+
                 ## Markdown Capabilities
                 - Headers `#`, `##`, `###`
                 - Bold `**text**` and Italic `*text*`
                 - Inline code blocks `` `code` ``
                 - Multi-line fenced code blocks with dark surface containers
                 - Bullet lists with indented items
+                - GitHub Flavored Markdown tables with column alignments
             """.trimIndent(),
             updatedAt = System.currentTimeMillis() - 14400_000
         )
