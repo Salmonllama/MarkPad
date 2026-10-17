@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -29,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.notedown.markpad.ui.components.EditorPane
 import com.notedown.markpad.ui.components.ExportNoteDialog
+import com.notedown.markpad.ui.components.OpenFileDialog
 import com.notedown.markpad.ui.components.PreviewPane
 import com.notedown.markpad.ui.components.SettingsDialog
 import com.notedown.markpad.ui.components.SidebarPane
@@ -59,6 +61,7 @@ fun MarkPadScreen(
                         onNewNote = viewModel::createNewNote,
                         onSave = viewModel::triggerSave,
                         onTogglePreview = viewModel::togglePreview,
+                        onOpenFile = viewModel::openFileDialog,
                         onExport = viewModel::openExportDialog,
                         onOpenSettings = viewModel::openSettingsDialog
                     )
@@ -74,6 +77,9 @@ fun MarkPadScreen(
                         containerColor = MaterialTheme.colorScheme.surface
                     ),
                     actions = {
+                        IconButton(onClick = viewModel::openFileDialog) {
+                            Icon(Icons.Default.FolderOpen, contentDescription = "Open File (Ctrl+O)")
+                        }
                         IconButton(onClick = viewModel::triggerSave) {
                             Icon(Icons.Default.Done, contentDescription = "Save (Ctrl+S)")
                         }
@@ -103,6 +109,7 @@ fun MarkPadScreen(
                         onQueryChanged = viewModel::updateSearchQuery,
                         onNoteSelected = viewModel::selectNote,
                         onNewNote = viewModel::createNewNote,
+                        onOpenFile = viewModel::openFileDialog,
                         onDeleteNote = viewModel::deleteNote,
                         modifier = Modifier.width(280.dp)
                     )
@@ -136,8 +143,19 @@ fun MarkPadScreen(
                     wordCount = currentState.wordCount,
                     charCount = currentState.charCount,
                     saveStatus = currentState.saveStatus,
-                    statusMessage = currentState.statusMessage
+                    statusMessage = currentState.statusMessage,
+                    activeNote = currentState.selectedNote
                 )
+
+                // Open Markdown File Dialog
+                if (currentState.isOpenFileDialogOpen) {
+                    OpenFileDialog(
+                        onDismiss = viewModel::dismissOpenFileDialog,
+                        onFileSelected = { uri, source ->
+                            viewModel.openExternalFile(uri.toString(), source)
+                        }
+                    )
+                }
 
                 // Export Note Dialog
                 if (currentState.isExportDialogOpen && currentState.selectedNote != null) {

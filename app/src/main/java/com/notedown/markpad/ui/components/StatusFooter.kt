@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.notedown.markpad.model.Note
 import com.notedown.markpad.viewmodel.SaveStatus
 
 @Composable
@@ -22,6 +23,7 @@ fun StatusFooter(
     charCount: Int,
     saveStatus: SaveStatus,
     statusMessage: String?,
+    activeNote: Note? = null,
     modifier: Modifier = Modifier
 ) {
     val statusLabel = when (saveStatus) {
@@ -43,6 +45,14 @@ fun StatusFooter(
             Text("$totalNotes scratchpads", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("$wordCount words", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("$charCount characters", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (activeNote?.isExternalFile == true) {
+                val fileLabel = activeNote.sourceFileName ?: activeNote.title
+                Text(
+                    "Linked: ${activeNote.fileSource.shortBadge} • $fileLabel",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

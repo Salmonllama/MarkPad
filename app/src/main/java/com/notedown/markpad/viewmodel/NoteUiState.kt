@@ -20,6 +20,7 @@ sealed interface NoteUiState {
         val saveStatus: SaveStatus = SaveStatus.Saved,
         val statusMessage: String? = null,
         val isExportDialogOpen: Boolean = false,
+        val isOpenFileDialogOpen: Boolean = false,
         val cursorPosition: Int = 0,
         val appTheme: com.notedown.markpad.model.AppTheme = com.notedown.markpad.model.AppTheme.DARK,
         val editorFont: com.notedown.markpad.model.AppFont = com.notedown.markpad.model.AppFont.MONOSPACE,
@@ -35,7 +36,8 @@ sealed interface NoteUiState {
             } else {
                 notes.filter {
                     it.title.contains(searchQuery, ignoreCase = true) ||
-                    it.content.contains(searchQuery, ignoreCase = true)
+                    it.content.contains(searchQuery, ignoreCase = true) ||
+                    (it.sourceFileName?.contains(searchQuery, ignoreCase = true) == true)
                 }
             }
 

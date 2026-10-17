@@ -4,6 +4,8 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.notedown.markpad.data.ExternalFileGateway
+import com.notedown.markpad.data.InMemoryExternalFileGateway
 import com.notedown.markpad.data.InMemoryNoteRepository
 import com.notedown.markpad.data.InMemoryUserPreferencesRepository
 import com.notedown.markpad.data.NoteRepository
@@ -13,6 +15,7 @@ import com.notedown.markpad.export.ExportFormat
 import com.notedown.markpad.export.ExportManager
 import com.notedown.markpad.model.AppFont
 import com.notedown.markpad.model.AppTheme
+import com.notedown.markpad.model.FileSource
 import com.notedown.markpad.model.Note
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -24,10 +27,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.OutputStream
+import java.util.UUID
 
 private data class WorkspaceControlState(
     val query: String,
@@ -48,6 +53,7 @@ class NoteViewModel(
     private val repository: NoteRepository = InMemoryNoteRepository(),
     private val preferencesRepository: UserPreferencesRepository = InMemoryUserPreferencesRepository(),
     private val exportManager: ExportManager = ExportManager(),
+    private val externalFileGateway: ExternalFileGateway = InMemoryExternalFileGateway(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
 
@@ -61,6 +67,7 @@ class NoteViewModel(
     private val _saveStatus = MutableStateFlow<SaveStatus>(SaveStatus.Saved)
     private val _statusNotification = MutableStateFlow<String?>(null)
     private val _isExportDialogOpen = MutableStateFlow(false)
+    private val _isOpenFileDialogOpen = MutableStateFlow(false)
     private val _appTheme = MutableStateFlow(preferencesRepository.getAppTheme())
     private val _editorFont = MutableStateFlow(preferencesRepository.getEditorFont())
     private val _uiFont = MutableStateFlow(preferencesRepository.getUiFont())
@@ -104,16 +111,18 @@ class NoteViewModel(
         val appTheme: AppTheme,
         val editorFont: AppFont,
         val uiFont: AppFont,
-        val isSettingsDialogOpen: Boolean
+        val isSettingsDialogOpen: Boolean,
+        val isOpenFileDialogOpen: Boolean
     )
 
     private val _settingsState = combine(
         _appTheme,
         _editorFont,
         _uiFont,
-        _isSettingsDialogOpen
-    ) { theme, editorFont, uiFont, isSettingsDialogOpen ->
-        SettingsControlState(theme, editorFont, uiFont, isSettingsDialogOpen)
+        _isSettingsDialogOpen,
+        _isOpenFileDialogOpen
+    ) { theme, editorFont, uiFont, isSettingsDialogOpen, isOpenFileDialogOpen ->
+        SettingsControlState(theme, editorFont, uiFont, isSettingsDialogOpen, isOpenFileDialogOpen)
     }
 
     val uiState: StateFlow<NoteUiState> = combine(
@@ -155,6 +164,7 @@ class NoteViewModel(
             saveStatus = controls.saveState,
             statusMessage = controls.message,
             isExportDialogOpen = controls.isExportDialogOpen,
+            isOpenFileDialogOpen = settings.isOpenFileDialogOpen,
             cursorPosition = safeCursor,
             appTheme = settings.appTheme,
             editorFont = settings.editorFont,
@@ -208,10 +218,22 @@ class NoteViewModel(
     }
 
     private suspend fun saveDraftToRepository(draft: ActiveNoteDraft) {
-        val currentNotes = (uiState.value as? NoteUiState.Ready)?.notes ?: emptyList()
+        val currentNotes = (uiState.value as? NoteUiState.Ready)?.notes
+            ?: repository.getNotes().firstOrNull().orEmpty()
         val existing = currentNotes.find { it.id == draft.id }
         if (existing != null) {
-            repository.saveNote(existing.copy(title = draft.title, content = draft.content))
+            val updated = existing.copy(
+                title = draft.title,
+                content = draft.content,
+                updatedAt = System.currentTimeMillis()
+            )
+            repository.saveNote(updated)
+            if (existing.isExternalFile && !existing.sourceUri.isNullOrBlank()) {
+                val writeResult = externalFileGateway.writeFile(existing.sourceUri, draft.content)
+                if (writeResult.isFailure) {
+                    triggerStatusNotification("Saved locally (external source is read-only)")
+                }
+            }
         }
     }
 
@@ -303,6 +325,85 @@ class NoteViewModel(
         }
     }
 
+    fun openFileDialog() {
+        _isOpenFileDialogOpen.value = true
+    }
+
+    fun dismissOpenFileDialog() {
+        _isOpenFileDialogOpen.value = false
+    }
+
+    fun openExternalFile(uriString: String, preferredSource: FileSource? = null) {
+        viewModelScope.launch {
+            flushPendingSave()
+            _activeDraft.value = null
+            _saveDebounceFlow.value = null
+
+            val result = externalFileGateway.readFile(uriString, preferredSource)
+            result.fold(
+                onSuccess = { payload ->
+                    val currentNotes = (uiState.value as? NoteUiState.Ready)?.notes
+                        ?: repository.getNotes().firstOrNull().orEmpty()
+                    val existingNote = currentNotes.find { it.sourceUri == payload.uri }
+                    val derivedTitle = deriveExternalNoteTitle(payload.content, payload.displayName)
+
+                    val targetNote = if (existingNote != null) {
+                        existingNote.copy(
+                            title = derivedTitle,
+                            content = payload.content,
+                            updatedAt = System.currentTimeMillis(),
+                            fileSource = payload.detectedSource,
+                            sourceFileName = payload.displayName
+                        )
+                    } else {
+                        Note(
+                            id = UUID.randomUUID().toString(),
+                            title = derivedTitle,
+                            content = payload.content,
+                            updatedAt = System.currentTimeMillis(),
+                            sourceUri = payload.uri,
+                            fileSource = payload.detectedSource,
+                            sourceFileName = payload.displayName
+                        )
+                    }
+
+                    repository.saveNote(targetNote)
+                    _isOpenFileDialogOpen.value = false
+                    _selectedNoteId.value = targetNote.id
+                    preferencesRepository.setLastOpenedNoteId(targetNote.id)
+                    val restoredCursor = if (existingNote != null) {
+                        preferencesRepository.getLastCursorPosition(targetNote.id)
+                            .coerceIn(0, payload.content.length)
+                    } else {
+                        preferencesRepository.setLastCursorPosition(targetNote.id, 0)
+                        0
+                    }
+                    _cursorPosition.value = restoredCursor
+                    _previewMarkdown.value = payload.content
+                    _previewDebounceFlow.value = null
+
+                    val actionVerb = if (existingNote != null) "Reloaded" else "Opened"
+                    triggerStatusNotification("$actionVerb '${payload.displayName}' (${payload.detectedSource.displayName})")
+                },
+                onFailure = { error ->
+                    triggerStatusNotification("Failed to open file: ${error.message ?: "Unknown error"}")
+                }
+            )
+        }
+    }
+
+    private fun deriveExternalNoteTitle(content: String, displayName: String): String {
+        val firstNonBlank = content.lines().firstOrNull { it.isNotBlank() }?.trim()
+        if (firstNonBlank != null && firstNonBlank.startsWith("#")) {
+            val heading = firstNonBlank.trimStart('#').trim()
+            if (heading.isNotBlank()) return heading
+        }
+        return displayName
+            .replace(Regex("\\.(md|markdown|txt)$", RegexOption.IGNORE_CASE), "")
+            .trim()
+            .ifBlank { "Untitled Note" }
+    }
+
     fun deleteNote(id: String) {
         viewModelScope.launch {
             if (_activeDraft.value?.id == id) {
@@ -336,14 +437,26 @@ class NoteViewModel(
 
             repository.deleteNote(id)
             val title = noteToDelete?.title?.ifBlank { "Untitled Note" } ?: "Note"
-            triggerStatusNotification("Deleted \"$title\"")
+            if (noteToDelete?.isExternalFile == true) {
+                triggerStatusNotification("Closed linked file \"$title\"")
+            } else {
+                triggerStatusNotification("Deleted \"$title\"")
+            }
         }
     }
 
     fun triggerSave() {
         viewModelScope.launch {
             _saveStatus.value = SaveStatus.Saving
-            flushPendingSave()
+            val activeDraft = _activeDraft.value
+            if (activeDraft != null) {
+                flushPendingSave()
+            } else {
+                val selected = (uiState.value as? NoteUiState.Ready)?.selectedNote
+                if (selected != null && selected.isExternalFile && !selected.sourceUri.isNullOrBlank()) {
+                    externalFileGateway.writeFile(selected.sourceUri, selected.content)
+                }
+            }
             delay(100)
             _saveStatus.value = SaveStatus.Saved
             triggerStatusNotification("Note saved successfully")

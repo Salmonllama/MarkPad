@@ -12,6 +12,7 @@ fun Modifier.handleMarkPadShortcuts(
     onNewNote: () -> Unit,
     onSave: () -> Unit,
     onTogglePreview: () -> Unit,
+    onOpenFile: () -> Unit = {},
     onExport: () -> Unit = {},
     onOpenSettings: () -> Unit = {}
 ): Modifier = this.onPreviewKeyEvent { event ->
@@ -19,6 +20,10 @@ fun Modifier.handleMarkPadShortcuts(
         when (event.key) {
             Key.N -> {
                 onNewNote()
+                true
+            }
+            Key.O -> {
+                onOpenFile()
                 true
             }
             Key.S -> {
