@@ -44,7 +44,7 @@ fun StatusFooter(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text("$totalNotes scratchpads", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(formatScratchpadCount(totalNotes), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("$wordCount words", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("$charCount characters", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (totalTasks > 0) {
@@ -72,3 +72,8 @@ fun StatusFooter(
         }
     }
 }
+
+internal fun formatScratchpadCount(totalNotes: Int): String {
+    return if (totalNotes == 1) "1 scratchpad" else "$totalNotes scratchpads"
+}
+
