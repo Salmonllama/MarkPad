@@ -9,6 +9,7 @@ This document provides AI coding agents and LLM contributors with the architectu
 **MarkPad** is a desktop- and large-screen-optimized Markdown scratchpad and note manager for Android. It features a 3-pane horizontal workspace (Sidebar, Editor, Collapsible Live Preview), live-linked external file editing (Local storage, Linux VM environment, Google Drive), interactive task checklists, customizable themes/typography, and native export to `.pdf`, `.docx`, and `.md`.
 
 - **Application ID / Namespace**: `io.salmonllama.MarkPad` (`.debug` suffix on debug builds)
+- **Current Version**: `1.3.0` (`versionCode = 9`)
 - **Language & Toolchain**: Kotlin 2.0 (`jvmTarget = "17"`), Java 17, Android Gradle Plugin (AGP), KSP (`com.google.devtools.ksp`)
 - **Android SDK Levels**: `compileSdk = 36`, `targetSdk = 36`, `minSdk = 26` (Android 8.0+)
 - **UI Framework**: Jetpack Compose (`androidx.compose:compose-bom:2024.09.00`) + Material 3 + Material Icons Extended
