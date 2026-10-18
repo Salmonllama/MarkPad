@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.salmonllama.MarkPad.model.AppFont
 import io.salmonllama.MarkPad.model.Note
+import java.text.BreakIterator
 
 @Composable
 fun EditorPane(
@@ -168,6 +169,16 @@ fun EditorPane(
                         ) {
                             applyEditorValue(deleteLineAtCursor(textFieldValue))
                             true
+                        } else if (
+                            event.type == KeyEventType.KeyDown &&
+                            event.key == Key.Backspace &&
+                            event.isShiftPressed &&
+                            !event.isCtrlPressed &&
+                            !event.isAltPressed &&
+                            !event.isMetaPressed
+                        ) {
+                            applyEditorValue(backspaceAtCursor(textFieldValue))
+                            true
                         } else {
                             false
                         }
@@ -226,5 +237,42 @@ internal fun deleteLineAtCursor(value: TextFieldValue): TextFieldValue {
             TextFieldValue(text = newText, selection = TextRange(newCursor))
         }
     }
+}
+
+/**
+ * Applies a standard backspace operation at the current selection or cursor position:
+ * - If text is selected, deletes the selected text range and places the cursor at selection start.
+ * - If the cursor is collapsed, deletes the single preceding character (including UTF-16
+ *   surrogate pairs and CRLF line breaks).
+ */
+internal fun backspaceAtCursor(value: TextFieldValue): TextFieldValue {
+    val text = value.text
+    if (text.isEmpty()) {
+        return value
+    }
+
+    if (!value.selection.collapsed) {
+        val min = value.selection.min
+        val max = value.selection.max
+        val newText = text.removeRange(min, max)
+        return TextFieldValue(text = newText, selection = TextRange(min))
+    }
+
+    val cursor = value.selection.end.coerceIn(0, text.length)
+    if (cursor == 0) {
+        return value
+    }
+
+    val iterator = BreakIterator.getCharacterInstance()
+    iterator.setText(text)
+    val preceding = iterator.preceding(cursor)
+    val deleteStart = if (preceding == BreakIterator.DONE || preceding < 0) {
+        (cursor - 1).coerceAtLeast(0)
+    } else {
+        preceding
+    }
+
+    val newText = text.removeRange(deleteStart, cursor)
+    return TextFieldValue(text = newText, selection = TextRange(deleteStart))
 }
 
