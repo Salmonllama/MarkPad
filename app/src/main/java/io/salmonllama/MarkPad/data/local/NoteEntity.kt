@@ -14,7 +14,9 @@ data class NoteEntity(
     @ColumnInfo(index = true) val updatedAt: Long,
     val sourceUri: String? = null,
     val fileSource: String = FileSource.INTERNAL.name,
-    val sourceFileName: String? = null
+    val sourceFileName: String? = null,
+    val isPinned: Boolean = false,
+    val pinnedAt: Long? = null
 ) {
     fun toDomain(): Note = Note(
         id = id,
@@ -23,7 +25,9 @@ data class NoteEntity(
         updatedAt = updatedAt,
         sourceUri = sourceUri,
         fileSource = FileSource.fromNameOrDefault(fileSource),
-        sourceFileName = sourceFileName
+        sourceFileName = sourceFileName,
+        isPinned = isPinned,
+        pinnedAt = pinnedAt
     )
 
     companion object {
@@ -34,7 +38,9 @@ data class NoteEntity(
             updatedAt = note.updatedAt,
             sourceUri = note.sourceUri,
             fileSource = note.fileSource.name,
-            sourceFileName = note.sourceFileName
+            sourceFileName = note.sourceFileName,
+            isPinned = note.isPinned,
+            pinnedAt = note.pinnedAt
         )
     }
 }

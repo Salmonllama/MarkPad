@@ -97,4 +97,25 @@ class NoteEntityTest {
             )
         )
     }
+
+    @Test
+    fun pinnedFields_roundTripBetweenDomainAndEntity() {
+        val pinnedNote = Note(
+            id = "pinned-1",
+            title = "Pinned Scratchpad",
+            content = "# Pinned\n\nImportant reference.",
+            updatedAt = 1000L,
+            isPinned = true,
+            pinnedAt = 2000L
+        )
+
+        val entity = NoteEntity.fromDomain(pinnedNote)
+        org.junit.Assert.assertTrue(entity.isPinned)
+        assertEquals(2000L, entity.pinnedAt)
+
+        val restored = entity.toDomain()
+        assertEquals(pinnedNote, restored)
+        org.junit.Assert.assertTrue(restored.isPinned)
+        assertEquals(2000L, restored.pinnedAt)
+    }
 }

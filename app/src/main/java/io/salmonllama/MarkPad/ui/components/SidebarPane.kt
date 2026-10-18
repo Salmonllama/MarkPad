@@ -27,18 +27,24 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.LinkOff
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,7 +67,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun SidebarPane(
     notes: List<Note>,
@@ -72,10 +78,15 @@ fun SidebarPane(
     onNewNote: () -> Unit,
     onOpenFile: () -> Unit = {},
     onDeleteNote: (String) -> Unit = {},
+    canPinMore: Boolean = true,
+    onTogglePinNote: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var contextMenuNoteId by remember { mutableStateOf<String?>(null) }
     var isConfirmingDelete by remember { mutableStateOf(false) }
+
+    val pinnedNotes = remember(notes) { notes.filter { it.isPinned } }
+    val unpinnedNotes = remember(notes) { notes.filterNot { it.isPinned } }
 
     Surface(
         modifier = modifier.fillMaxHeight(),
@@ -103,151 +114,81 @@ fun SidebarPane(
                     .weight(1f)
                     .fillMaxWidth()
             ) {
-                items(notes, key = { it.id }) { note ->
-                    val isSelected = note.id == selectedNoteId
-                    val isMenuExpanded = contextMenuNoteId == note.id
-                    val dateFormatted = SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(note.updatedAt))
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(
-                                if (isSelected) MaterialTheme.colorScheme.primaryContainer
-                                else MaterialTheme.colorScheme.surfaceVariant
-                            )
-                            .pointerInput(note.id) {
-                                awaitEachGesture {
-                                    val event = awaitPointerEvent(PointerEventPass.Initial)
-                                    if (event.type == PointerEventType.Press && event.buttons.isSecondaryPressed) {
-                                        event.changes.forEach { it.consume() }
-                                        contextMenuNoteId = note.id
-                                        isConfirmingDelete = false
-                                    }
-                                }
-                            }
-                            .combinedClickable(
-                                onClick = { onNoteSelected(note.id) },
-                                onLongClick = {
-                                    contextMenuNoteId = note.id
-                                    isConfirmingDelete = false
-                                }
-                            )
-                            .padding(12.dp)
-                    ) {
-                        Column {
-                            Text(
-                                text = note.title.ifBlank { "Untitled Note" },
-                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
-                                       else MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                if (note.isExternalFile) {
-                                    FileSourceBadge(source = note.fileSource)
-                                }
-                                Text(
-                                    text = dateFormatted,
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.outline
-                                )
-                            }
+                items(pinnedNotes, key = { it.id }) { note ->
+                    NoteSidebarCard(
+                        note = note,
+                        isSelected = note.id == selectedNoteId,
+                        isMenuExpanded = contextMenuNoteId == note.id,
+                        isConfirmingDelete = isConfirmingDelete,
+                        canPinMore = canPinMore,
+                        onSelect = { onNoteSelected(note.id) },
+                        onOpenContextMenu = {
+                            contextMenuNoteId = note.id
+                            isConfirmingDelete = false
+                        },
+                        onDismissContextMenu = {
+                            contextMenuNoteId = null
+                            isConfirmingDelete = false
+                        },
+                        onTogglePin = {
+                            val targetId = note.id
+                            contextMenuNoteId = null
+                            isConfirmingDelete = false
+                            onTogglePinNote(targetId)
+                        },
+                        onRequestDeleteConfirmation = {
+                            isConfirmingDelete = true
+                        },
+                        onConfirmDelete = {
+                            val targetId = note.id
+                            contextMenuNoteId = null
+                            isConfirmingDelete = false
+                            onDeleteNote(targetId)
                         }
+                    )
+                }
 
-                        DropdownMenu(
-                            expanded = isMenuExpanded,
-                            onDismissRequest = {
-                                contextMenuNoteId = null
-                                isConfirmingDelete = false
-                            }
-                        ) {
-                            val actionLabel = if (note.isExternalFile) "Close Linked File" else "Delete Note"
-                            val confirmLabel = if (note.isExternalFile) "Confirm Unlink" else "Confirm Delete"
-                            val actionIcon = if (note.isExternalFile) Icons.Default.LinkOff else Icons.Default.DeleteOutline
-
-                            if (!isConfirmingDelete) {
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            text = actionLabel,
-                                            color = MaterialTheme.colorScheme.error
-                                        )
-                                    },
-                                    leadingIcon = {
-                                        Icon(
-                                            actionIcon,
-                                            contentDescription = actionLabel,
-                                            tint = MaterialTheme.colorScheme.error
-                                        )
-                                    },
-                                    onClick = {
-                                        isConfirmingDelete = true
-                                    }
-                                )
-                            } else {
-                                DropdownMenuItem(
-                                    text = {
-                                        val prompt = if (note.isExternalFile) {
-                                            "Close \"${note.title.ifBlank { "Untitled Note" }}\" in MarkPad? (Original file stays intact)"
-                                        } else {
-                                            "Delete \"${note.title.ifBlank { "Untitled Note" }}\"?"
-                                        }
-                                        Text(
-                                            text = prompt,
-                                            fontWeight = FontWeight.SemiBold,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    },
-                                    enabled = false,
-                                    onClick = {}
-                                )
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            text = confirmLabel,
-                                            color = MaterialTheme.colorScheme.error,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    },
-                                    leadingIcon = {
-                                        Icon(
-                                            if (note.isExternalFile) Icons.Default.LinkOff else Icons.Default.Delete,
-                                            contentDescription = confirmLabel,
-                                            tint = MaterialTheme.colorScheme.error
-                                        )
-                                    },
-                                    onClick = {
-                                        val targetId = note.id
-                                        contextMenuNoteId = null
-                                        isConfirmingDelete = false
-                                        onDeleteNote(targetId)
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Cancel") },
-                                    leadingIcon = {
-                                        Icon(
-                                            Icons.Default.Close,
-                                            contentDescription = "Cancel"
-                                        )
-                                    },
-                                    onClick = {
-                                        contextMenuNoteId = null
-                                        isConfirmingDelete = false
-                                    }
-                                )
-                            }
-                        }
+                if (pinnedNotes.isNotEmpty() && unpinnedNotes.isNotEmpty()) {
+                    item(key = "pinned-unpinned-divider") {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
                     }
+                }
+
+                items(unpinnedNotes, key = { it.id }) { note ->
+                    NoteSidebarCard(
+                        note = note,
+                        isSelected = note.id == selectedNoteId,
+                        isMenuExpanded = contextMenuNoteId == note.id,
+                        isConfirmingDelete = isConfirmingDelete,
+                        canPinMore = canPinMore,
+                        onSelect = { onNoteSelected(note.id) },
+                        onOpenContextMenu = {
+                            contextMenuNoteId = note.id
+                            isConfirmingDelete = false
+                        },
+                        onDismissContextMenu = {
+                            contextMenuNoteId = null
+                            isConfirmingDelete = false
+                        },
+                        onTogglePin = {
+                            val targetId = note.id
+                            contextMenuNoteId = null
+                            isConfirmingDelete = false
+                            onTogglePinNote(targetId)
+                        },
+                        onRequestDeleteConfirmation = {
+                            isConfirmingDelete = true
+                        },
+                        onConfirmDelete = {
+                            val targetId = note.id
+                            contextMenuNoteId = null
+                            isConfirmingDelete = false
+                            onDeleteNote(targetId)
+                        }
+                    )
                 }
             }
 
@@ -285,6 +226,223 @@ fun SidebarPane(
                         Text("New", fontWeight = FontWeight.Medium)
                     }
                 }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun NoteSidebarCard(
+    note: Note,
+    isSelected: Boolean,
+    isMenuExpanded: Boolean,
+    isConfirmingDelete: Boolean,
+    canPinMore: Boolean,
+    onSelect: () -> Unit,
+    onOpenContextMenu: () -> Unit,
+    onDismissContextMenu: () -> Unit,
+    onTogglePin: () -> Unit,
+    onRequestDeleteConfirmation: () -> Unit,
+    onConfirmDelete: () -> Unit
+) {
+    val dateFormatted = SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(note.updatedAt))
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surfaceVariant
+            )
+            .pointerInput(note.id) {
+                awaitEachGesture {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    if (event.type == PointerEventType.Press && event.buttons.isSecondaryPressed) {
+                        event.changes.forEach { it.consume() }
+                        onOpenContextMenu()
+                    }
+                }
+            }
+            .combinedClickable(
+                onClick = onSelect,
+                onLongClick = onOpenContextMenu
+            )
+            .padding(12.dp)
+    ) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = note.title.ifBlank { "Untitled Note" },
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
+                           else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                if (note.isPinned) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.Default.PushPin,
+                        contentDescription = "Pinned note",
+                        tint = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
+                               else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (note.isExternalFile) {
+                    FileSourceBadge(source = note.fileSource)
+                }
+                Text(
+                    text = dateFormatted,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+        }
+
+        DropdownMenu(
+            expanded = isMenuExpanded,
+            onDismissRequest = onDismissContextMenu
+        ) {
+            val actionLabel = if (note.isExternalFile) "Close Linked File" else "Delete Note"
+            val confirmLabel = if (note.isExternalFile) "Confirm Unlink" else "Confirm Delete"
+            val actionIcon = if (note.isExternalFile) Icons.Default.LinkOff else Icons.Default.DeleteOutline
+
+            if (!isConfirmingDelete) {
+                if (note.isPinned) {
+                    DropdownMenuItem(
+                        text = { Text("Unpin Note") },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.PushPin,
+                                contentDescription = "Unpin Note"
+                            )
+                        },
+                        onClick = onTogglePin
+                    )
+                } else if (canPinMore) {
+                    DropdownMenuItem(
+                        text = { Text("Pin to Top") },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.PushPin,
+                                contentDescription = "Pin to Top"
+                            )
+                        },
+                        onClick = onTogglePin
+                    )
+                } else {
+                    val limitTooltipText = "Maximum of ${Note.MAX_PINNED_NOTES} pinned notes allowed"
+                    TooltipBox(
+                        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                        tooltip = {
+                            PlainTooltip {
+                                Text(limitTooltipText)
+                            }
+                        },
+                        state = rememberTooltipState()
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text("Pin to Top")
+                                    Text(
+                                        text = limitTooltipText,
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.PushPin,
+                                    contentDescription = limitTooltipText
+                                )
+                            },
+                            enabled = false,
+                            onClick = {}
+                        )
+                    }
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = actionLabel,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            actionIcon,
+                            contentDescription = actionLabel,
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    },
+                    onClick = onRequestDeleteConfirmation
+                )
+            } else {
+                DropdownMenuItem(
+                    text = {
+                        val prompt = if (note.isExternalFile) {
+                            "Close \"${note.title.ifBlank { "Untitled Note" }}\" in MarkPad? (Original file stays intact)"
+                        } else {
+                            "Delete \"${note.title.ifBlank { "Untitled Note" }}\"?"
+                        }
+                        Text(
+                            text = prompt,
+                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    enabled = false,
+                    onClick = {}
+                )
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = confirmLabel,
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            if (note.isExternalFile) Icons.Default.LinkOff else Icons.Default.Delete,
+                            contentDescription = confirmLabel,
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    },
+                    onClick = onConfirmDelete
+                )
+                DropdownMenuItem(
+                    text = { Text("Cancel") },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Cancel"
+                        )
+                    },
+                    onClick = onDismissContextMenu
+                )
             }
         }
     }

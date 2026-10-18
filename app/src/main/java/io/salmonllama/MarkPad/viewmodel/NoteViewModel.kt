@@ -467,6 +467,37 @@ class NoteViewModel(
         }
     }
 
+    fun togglePinNote(id: String) {
+        viewModelScope.launch {
+            flushPendingSave()
+            val currentNotes = (uiState.value as? NoteUiState.Ready)?.notes
+                ?: repository.getNotes().firstOrNull().orEmpty()
+            val targetNote = currentNotes.find { it.id == id } ?: return@launch
+            val title = targetNote.title.ifBlank { "Untitled Note" }
+
+            if (targetNote.isPinned) {
+                val unpinned = targetNote.copy(
+                    isPinned = false,
+                    pinnedAt = null
+                )
+                repository.saveNote(unpinned)
+                triggerStatusNotification("Unpinned \"$title\"")
+            } else {
+                val pinnedCount = currentNotes.count { it.isPinned }
+                if (pinnedCount >= Note.MAX_PINNED_NOTES) {
+                    triggerStatusNotification("Maximum of ${Note.MAX_PINNED_NOTES} pinned notes allowed")
+                    return@launch
+                }
+                val pinned = targetNote.copy(
+                    isPinned = true,
+                    pinnedAt = System.currentTimeMillis()
+                )
+                repository.saveNote(pinned)
+                triggerStatusNotification("Pinned \"$title\"")
+            }
+        }
+    }
+
     fun triggerSave() {
         viewModelScope.launch {
             _saveStatus.value = SaveStatus.Saving

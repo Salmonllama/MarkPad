@@ -7,7 +7,7 @@
 ## ✨ Key Features
 
 - **3-Pane Desktop-Class Workspace**
-  - **Sidebar Pane**: Instant full-text search across note titles and content, last-modified timestamps, file source badges, and quick actions to create or open files.
+  - **Sidebar Pane**: Instant full-text search across note titles and content, pinned notes section (up to 3 pinned notes at the top), last-modified timestamps, file source badges, and quick actions to create or open files.
   - **Editor Pane**: Responsive, zero-lag text editor with automatic per-note cursor position memory and debounced background auto-saving.
   - **Live Preview Pane (Collapsible)**: Real-time rendered Markdown preview that updates smoothly as you type and can be toggled on or off anytime.
 - **Live-Linked External Files**
@@ -35,13 +35,17 @@
 - **Create a New Note**: Click the **+ New** button at the bottom of the left sidebar or press `Ctrl + N`.
 - **Automatic Note Titles**: MarkPad automatically derives a note's title from its **first non-empty line** (stripping leading `#` heading markers). If you open an external file without a top heading, the file's name is used.
 - **Auto-Save & Manual Save**: Edits are automatically persisted in the background after a brief pause in typing. You can also click the **Save (✓)** icon in the top bar or press `Ctrl + S` to immediately flush changes.
+- **Pinning Notes to the Top**:
+  - **Right-click** or **long-press** any note in the sidebar and select **Pin to Top** to pin it to the top of the sidebar list (ordered newest pin first and separated from unpinned notes by a divider).
+  - Up to **3 notes** can be pinned at a time to preserve space for your unpinned notes. When 3 notes are pinned, the **Pin to Top** option is disabled with a tooltip reminding you of the 3-pin limit.
+  - Right-click or long-press a pinned note and select **Unpin Note** to return it to the regular list.
 - **Deleting or Unlinking Notes**:
   - **Right-click** (with a mouse/trackpad) or **long-press** (touch) any note in the sidebar to open its context menu.
   - For internal scratchpads, select **Delete Note → Confirm Delete** to permanently remove the note.
   - For external linked files, select **Close Linked File → Confirm Unlink** to remove it from MarkPad's sidebar while leaving the original file on your device or cloud drive intact.
 
 ### 2. Searching Your Notes
-- Use the **Search scratchpads...** field at the top of the left sidebar to filter your notes in real time by either title or body content.
+- Use the **Search scratchpads...** field at the top of the left sidebar to filter both your pinned and unpinned notes in real time by title, body content, or linked filename.
 
 ### 3. Opening & Editing External Markdown Files
 1. Click the **Open** button at the bottom of the sidebar, click the **Folder** icon in the top app bar, or press `Ctrl + O`.

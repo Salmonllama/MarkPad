@@ -124,6 +124,8 @@ fun MarkPadScreen(
                         onNewNote = viewModel::createNewNote,
                         onOpenFile = viewModel::openFileDialog,
                         onDeleteNote = viewModel::deleteNote,
+                        canPinMore = currentState.canPinMore,
+                        onTogglePinNote = viewModel::togglePinNote,
                         modifier = Modifier.width(280.dp)
                     )
 

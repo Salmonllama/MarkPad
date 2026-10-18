@@ -30,6 +30,12 @@ sealed interface NoteUiState {
         val selectedNote: Note?
             get() = notes.find { it.id == selectedNoteId } ?: notes.firstOrNull()
 
+        val pinnedNotesCount: Int
+            get() = notes.count { it.isPinned }
+
+        val canPinMore: Boolean
+            get() = pinnedNotesCount < Note.MAX_PINNED_NOTES
+
         val filteredNotes: List<Note>
             get() = if (searchQuery.isBlank()) {
                 notes

@@ -692,4 +692,134 @@ class NoteViewModelTest {
         assertEquals("1. [x] Numbered task item", updatedLines[2])
         assertEquals("  - [x] Nested task item", updatedLines[3])
     }
+
+    @Test
+    fun togglePinNote_pinsNoteAndMovesToTopOfList() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect()
+        }
+        advanceUntilIdle()
+
+        // Initially "feature-checklist" is last in SeedNotes
+        var ready = viewModel.uiState.value as NoteUiState.Ready
+        assertEquals("feature-checklist", ready.notes.last().id)
+        assertEquals(0, ready.pinnedNotesCount)
+        assertTrue(ready.canPinMore)
+
+        viewModel.togglePinNote("feature-checklist")
+        advanceTimeBy(100)
+
+        ready = viewModel.uiState.value as NoteUiState.Ready
+        assertEquals(1, ready.pinnedNotesCount)
+        assertTrue(ready.canPinMore)
+        assertEquals("feature-checklist", ready.notes.first().id)
+        assertTrue(ready.notes.first().isPinned)
+        assertNotNull(ready.notes.first().pinnedAt)
+        assertTrue(ready.statusMessage?.contains("Pinned") == true)
+    }
+
+    @Test
+    fun togglePinNote_ordersNewestPinFirst_andUnpinsBackToUpdatedAtOrder() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect()
+        }
+        advanceUntilIdle()
+
+        // Pin feature-checklist first, then cli-cheatsheet second
+        viewModel.togglePinNote("feature-checklist")
+        advanceTimeBy(50)
+        Thread.sleep(5) // ensure distinct System.currentTimeMillis()
+        viewModel.togglePinNote("cli-cheatsheet")
+        advanceTimeBy(50)
+
+        var ready = viewModel.uiState.value as NoteUiState.Ready
+        assertEquals(2, ready.pinnedNotesCount)
+        // Newest pin ("cli-cheatsheet") should be first, older pin ("feature-checklist") second
+        assertEquals("cli-cheatsheet", ready.notes[0].id)
+        assertEquals("feature-checklist", ready.notes[1].id)
+        assertEquals("meeting-retro", ready.notes[2].id)
+
+        // Unpin "cli-cheatsheet" -> should return below pinned "feature-checklist" and below newer "meeting-retro"
+        viewModel.togglePinNote("cli-cheatsheet")
+        advanceTimeBy(50)
+
+        ready = viewModel.uiState.value as NoteUiState.Ready
+        assertEquals(1, ready.pinnedNotesCount)
+        assertEquals("feature-checklist", ready.notes[0].id)
+        assertEquals("meeting-retro", ready.notes[1].id)
+        assertEquals("cli-cheatsheet", ready.notes[2].id)
+        assertFalse(ready.notes[2].isPinned)
+        assertNull(ready.notes[2].pinnedAt)
+    }
+
+    @Test
+    fun togglePinNote_enforcesMaxThreePinsLimit() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect()
+        }
+        advanceUntilIdle()
+
+        // Create a 4th note so we have 4 total notes
+        viewModel.createNewNote()
+        advanceUntilIdle()
+
+        var ready = viewModel.uiState.value as NoteUiState.Ready
+        assertEquals(4, ready.notes.size)
+        val fourthNoteId = ready.selectedNoteId!!
+
+        // Pin all 3 seed notes
+        viewModel.togglePinNote("feature-checklist")
+        advanceTimeBy(20)
+        viewModel.togglePinNote("cli-cheatsheet")
+        advanceTimeBy(20)
+        viewModel.togglePinNote("meeting-retro")
+        advanceTimeBy(20)
+
+        ready = viewModel.uiState.value as NoteUiState.Ready
+        assertEquals(3, ready.pinnedNotesCount)
+        assertFalse("Should not allow pinning more than 3 notes", ready.canPinMore)
+
+        // Attempt to pin the 4th note
+        viewModel.togglePinNote(fourthNoteId)
+        advanceTimeBy(50)
+
+        ready = viewModel.uiState.value as NoteUiState.Ready
+        assertEquals(3, ready.pinnedNotesCount)
+        val fourthNote = ready.notes.find { it.id == fourthNoteId }!!
+        assertFalse("4th note must remain unpinned", fourthNote.isPinned)
+        assertTrue(
+            "Should notify about 3-pin limit",
+            ready.statusMessage?.contains("Maximum of 3 pinned notes") == true
+        )
+    }
+
+    @Test
+    fun searchNotes_filtersBothPinnedAndUnpinnedNotesPreservingPinOrder() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect()
+        }
+        advanceUntilIdle()
+
+        // Pin "feature-checklist"
+        viewModel.togglePinNote("feature-checklist")
+        advanceTimeBy(50)
+
+        // Search for "Markdown" which appears in both "feature-checklist" (pinned) and "meeting-retro" / "cli-cheatsheet" (unpinned)
+        viewModel.updateSearchQuery("Markdown")
+        advanceUntilIdle()
+
+        var ready = viewModel.uiState.value as NoteUiState.Ready
+        assertTrue(ready.filteredNotes.size >= 2)
+        assertEquals("feature-checklist", ready.filteredNotes.first().id)
+        assertTrue(ready.filteredNotes.first().isPinned)
+
+        // Search for "Facilitator" which only appears in unpinned "meeting-retro"
+        viewModel.updateSearchQuery("Facilitator")
+        advanceUntilIdle()
+
+        ready = viewModel.uiState.value as NoteUiState.Ready
+        assertEquals(1, ready.filteredNotes.size)
+        assertEquals("meeting-retro", ready.filteredNotes.first().id)
+        assertFalse(ready.filteredNotes.first().isPinned)
+    }
 }

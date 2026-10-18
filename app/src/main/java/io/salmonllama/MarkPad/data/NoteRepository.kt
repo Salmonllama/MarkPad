@@ -17,18 +17,23 @@ interface NoteRepository {
 class InMemoryNoteRepository(
     initialNotes: List<Note> = SeedNotes.items
 ) : NoteRepository {
-    private val _notes = MutableStateFlow(initialNotes)
+    private val comparator = compareByDescending<Note> { it.isPinned }
+        .thenByDescending { it.pinnedAt ?: 0L }
+        .thenByDescending { it.updatedAt }
+
+    private val _notes = MutableStateFlow(initialNotes.sortedWith(comparator))
 
     override fun getNotes(): Flow<List<Note>> = _notes.asStateFlow()
 
     override suspend fun saveNote(note: Note) {
         _notes.update { list ->
             val index = list.indexOfFirst { it.id == note.id }
-            if (index >= 0) {
-                list.toMutableList().apply { set(index, note.copy(updatedAt = System.currentTimeMillis())) }
+            val updatedList = if (index >= 0) {
+                list.toMutableList().apply { set(index, note) }
             } else {
                 listOf(note) + list
             }
+            updatedList.sortedWith(comparator)
         }
     }
 
@@ -39,7 +44,7 @@ class InMemoryNoteRepository(
             content = content,
             updatedAt = System.currentTimeMillis()
         )
-        _notes.update { listOf(newNote) + it }
+        _notes.update { (listOf(newNote) + it).sortedWith(comparator) }
         return newNote
     }
 

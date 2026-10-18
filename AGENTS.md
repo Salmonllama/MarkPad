@@ -9,12 +9,12 @@ This document provides AI coding agents and LLM contributors with the architectu
 **MarkPad** is a desktop- and large-screen-optimized Markdown scratchpad and note manager for Android. It features a 3-pane horizontal workspace (Sidebar, Editor, Collapsible Live Preview), live-linked external file editing (Local storage, Linux VM environment, Google Drive), interactive task checklists, customizable themes/typography, and native export to `.pdf`, `.docx`, and `.md`.
 
 - **Application ID / Namespace**: `io.salmonllama.MarkPad` (`.debug` suffix on debug builds)
-- **Current Version**: `1.3.0` (`versionCode = 9`)
+- **Current Version**: `1.4.0` (`versionCode = 10`)
 - **Language & Toolchain**: Kotlin 2.0 (`jvmTarget = "17"`), Java 17, Android Gradle Plugin (AGP), KSP (`com.google.devtools.ksp`)
 - **Android SDK Levels**: `compileSdk = 36`, `targetSdk = 36`, `minSdk = 26` (Android 8.0+)
 - **UI Framework**: Jetpack Compose (`androidx.compose:compose-bom:2024.09.00`) + Material 3 + Material Icons Extended
 - **Persistence**:
-  - **Jetpack Room (`2.6.1`)**: SQLite database (`markpad_database.db`, schema v2) storing notes and external file link metadata.
+  - **Jetpack Room (`2.6.1`)**: SQLite database (`markpad_database.db`, schema v3) storing notes, external file link metadata, and pinned note state (`isPinned`, `pinnedAt`).
   - **SharedPreferences (`markpad_preferences`)**: Stores last opened note ID, per-note cursor offsets, active `AppTheme`, editor `AppFont`, and UI `AppFont`.
 - **Zero Heavy External Parser/Export Dependencies**:
   - Custom lightweight Markdown block & inline AST parsers (`MarkdownParser`, `InlineMarkdownParser`).
@@ -55,7 +55,7 @@ app/src/
 │   └── java/io/salmonllama/MarkPad/
 │       ├── MainActivity.kt                  # Entry point; wires Room, SharedPreferences, AndroidExternalFileGateway, and intents
 │       ├── model/
-│       │   ├── Note.kt                      # Core domain model (id, title, content, updatedAt, sourceUri, fileSource, sourceFileName)
+│       │   ├── Note.kt                      # Core domain model (id, title, content, updatedAt, sourceUri, fileSource, sourceFileName, isPinned, pinnedAt)
 │       │   ├── FileSource.kt                # Enum: INTERNAL, LOCAL_COMPUTER, LINUX_ENVIRONMENT, GOOGLE_DRIVE + URI authority detection
 │       │   ├── AppTheme.kt                  # Enum: LIGHT, DARK, PAPERGLOW, OLED
 │       │   └── AppFont.kt                   # Enum: SANS_SERIF, SERIF, MONOSPACE, CURSIVE
@@ -67,16 +67,16 @@ app/src/
 │       │   ├── SeedNotes.kt                 # Default starter notes populated on initial database creation
 │       │   └── local/
 │       │       ├── NoteEntity.kt            # Room @Entity("notes") with domain mapping (toDomain / fromDomain)
-│       │       ├── NoteDao.kt               # Room @Dao (getAllNotes Flow, upsertNote, insertAll, deleteNote)
-│       │       └── MarkPadDatabase.kt       # RoomDatabase (v2), MIGRATION_1_2, and onCreate seed callback
+│       │       ├── NoteDao.kt               # Room @Dao (getAllNotes Flow ordered by isPinned DESC, pinnedAt DESC, updatedAt DESC)
+│       │       └── MarkPadDatabase.kt       # RoomDatabase (v3), MIGRATION_1_2, MIGRATION_2_3, and onCreate seed callback
 │       ├── viewmodel/
 │       │   ├── NoteUiState.kt               # Sealed interface (Loading, Ready) + SaveStatus enum (Saved, Saving, UnsavedChanges)
-│       │   ├── NoteViewModel.kt             # Central state container, dual-debounce pipeline, task toggling, file sync, export
+│       │   ├── NoteViewModel.kt             # Central state container, dual-debounce pipeline, note pinning, task toggling, file sync, export
 │       │   └── NoteViewModelFactory.kt      # ViewModelProvider.Factory for MainActivity
 │       ├── ui/
 │       │   ├── MarkPadScreen.kt             # Root 3-pane Compose layout + TopAppBar + modal dialogs
 │       │   ├── components/
-│       │   │   ├── SidebarPane.kt           # Left pane: search bar, note list, source badges, right-click/long-press delete/unlink menu
+│       │   │   ├── SidebarPane.kt           # Left pane: search bar, pinned/unpinned note list, source badges, right-click/long-press pin/delete/unlink menu
 │       │   │   ├── EditorPane.kt            # Center pane: BasicTextField, cursor scroll restoration, echo suppression, Shift+Delete hotkey
 │       │   │   ├── PreviewPane.kt           # Right pane: scrollable surface wrapping MarkdownRenderer
 │       │   │   ├── StatusFooter.kt          # Bottom bar: note/word/char/task counts, linked file indicator, save status
@@ -130,10 +130,14 @@ Every external or platform boundary has a pure Kotlin interface paired with an `
 - Legitimate external changes (such as clicking a task checkbox in `PreviewPane` or reloading an external file) are not in `emittedContents` and smoothly update `textFieldValue`.
 - **Rule**: Do not remove `emittedContents` tracking in `EditorPane.kt`.
 
-### 4.3 Note Title Derivation & External File Lifecycle
+### 4.3 Note Title Derivation, Pinning & External File Lifecycle
 - **Title Derivation (`NoteViewModel.deriveTitle`)**:
   - Derived automatically from the first non-blank line of `content`, stripping leading `#` characters (`trimStart('#')`) and trimming to 60 characters (`...` suffix if longer).
   - If `content` is blank, it falls back to `fallbackTitle`: for external files, `sourceFileName` without extension; for internal notes, `"Untitled Note"` (or `"Untitled Scratchpad"` on initial creation).
+- **Sidebar Note Pinning (`Note.MAX_PINNED_NOTES = 3`)**:
+  - Up to 3 notes can be pinned to the top of the sidebar via right-click or long-press on a note card (`NoteViewModel.togglePinNote(id)`).
+  - Pinned notes are ordered with the newest pin first (`isPinned DESC, pinnedAt DESC`), visually separated from unpinned notes (`updatedAt DESC`) by a horizontal divider in `SidebarPane`, and display a pin icon on the card.
+  - When 3 notes are already pinned (`canPinMore == false`), the "Pin to Top" context menu item on unpinned notes is disabled and displays a tooltip informing the user of the 3-pin limit.
 - **External File Linking**:
   - Notes opened via `openExternalFile(uriString, preferredSource)` check if a note with the same `sourceUri` already exists in the repository; if so, it updates and selects that note instead of creating a duplicate.
   - External files have `fileSource != FileSource.INTERNAL` and `sourceUri != null` (`note.isExternalFile == true`).
@@ -158,8 +162,9 @@ Markdown parsing is split into two stages:
 - When a user clicks a task checkbox in `PreviewPane`, `NoteViewModel.toggleTaskItem(lineIndex)` uses `^(\s*(?:[-*+]|\d+[.)])\s+\[)([ xX])(].*)$` to flip `[ ]` ↔ `[x]` on that specific line (supporting `-`, `*`, `+`, numbered, and nested tasks), immediately updates `_activeDraft` and `_previewMarkdown`, and schedules persistence.
 
 ### 4.6 Room Database Schema & Migrations
-- `MarkPadDatabase` is currently at **`version = 2`**.
+- `MarkPadDatabase` is currently at **`version = 3`**.
 - Version 1 → 2 migration (`MIGRATION_1_2`) added `sourceUri`, `fileSource`, and `sourceFileName` columns to the `notes` table.
+- Version 2 → 3 migration (`MIGRATION_2_3`) added `isPinned` (`INTEGER NOT NULL DEFAULT 0`) and `pinnedAt` (`INTEGER`) columns to the `notes` table.
 - **Rule**: Never use `fallbackToDestructiveMigration()`. If you modify `NoteEntity.kt`, increment the `@Database(version = ...)` number in `MarkPadDatabase.kt`, add a corresponding `Migration(oldVersion, newVersion)` object, register it in `.addMigrations(...)`, and add mapping tests in `NoteEntityTest.kt`.
 
 ### 4.7 Theme Contrast & Accessibility Invariant
