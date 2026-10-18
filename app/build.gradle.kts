@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.notedown.markpad"
+    namespace = "io.salmonllama.MarkPad"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.notedown.markpad"
+        applicationId = "io.salmonllama.MarkPad"
         minSdk = 26
         targetSdk = 34
         versionCode = 7
