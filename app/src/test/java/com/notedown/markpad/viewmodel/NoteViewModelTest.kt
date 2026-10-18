@@ -608,4 +608,53 @@ class NoteViewModelTest {
         assertTrue(ready.statusMessage?.contains("Deleted") == true)
         assertTrue(ready.statusMessage?.contains("Cheat Sheet") == true)
     }
+
+    @Test
+    fun initialState_computesTaskCountsFromSelectedNote() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect()
+        }
+        advanceUntilIdle()
+
+        val ready = viewModel.uiState.value as NoteUiState.Ready
+        // "meeting-retro" has 3 unchecked action items
+        assertEquals(3, ready.totalTaskCount)
+        assertEquals(0, ready.completedTaskCount)
+    }
+
+    @Test
+    fun toggleTaskItem_flipsUncheckedToCheckedAndBack() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect()
+        }
+        advanceUntilIdle()
+
+        val initialReady = viewModel.uiState.value as NoteUiState.Ready
+        val lines = initialReady.selectedNote!!.content.lines()
+        val firstTaskLineIndex = lines.indexOfFirst { it.trim().startsWith("- [ ]") }
+        assertTrue("Expected a task line in seed note", firstTaskLineIndex >= 0)
+
+        // Toggle unchecked -> checked
+        viewModel.toggleTaskItem(firstTaskLineIndex)
+        testScheduler.runCurrent()
+        var ready = viewModel.uiState.value as NoteUiState.Ready
+        assertEquals(3, ready.totalTaskCount)
+        assertEquals(1, ready.completedTaskCount)
+        assertTrue(ready.selectedNote!!.content.lines()[firstTaskLineIndex].contains("- [x]"))
+        assertTrue(ready.previewMarkdown.lines()[firstTaskLineIndex].contains("- [x]"))
+
+        // Advance past debounce to verify repository persistence
+        advanceTimeBy(200)
+        advanceUntilIdle()
+        ready = viewModel.uiState.value as NoteUiState.Ready
+        assertEquals(SaveStatus.Saved, ready.saveStatus)
+
+        // Toggle checked -> unchecked
+        viewModel.toggleTaskItem(firstTaskLineIndex)
+        testScheduler.runCurrent()
+        ready = viewModel.uiState.value as NoteUiState.Ready
+        assertEquals(3, ready.totalTaskCount)
+        assertEquals(0, ready.completedTaskCount)
+        assertTrue(ready.selectedNote!!.content.lines()[firstTaskLineIndex].contains("- [ ]"))
+    }
 }

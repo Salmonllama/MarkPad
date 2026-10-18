@@ -1,9 +1,12 @@
 package com.notedown.markpad.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Done
@@ -27,7 +30,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import com.notedown.markpad.R
 import com.notedown.markpad.ui.components.EditorPane
 import com.notedown.markpad.ui.components.ExportNoteDialog
 import com.notedown.markpad.ui.components.OpenFileDialog
@@ -68,10 +73,18 @@ fun MarkPadScreen(
             ) {
                 TopAppBar(
                     title = {
-                        Text(
-                            text = "MarkPad — Markdown Notes Manager",
-                            style = MaterialTheme.typography.titleMedium
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Image(
+                                painter = painterResource(id = R.drawable.app_logo),
+                                contentDescription = "MarkPad Logo",
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "MarkPad — Markdown Notes Manager",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.surface
@@ -132,6 +145,7 @@ fun MarkPadScreen(
 
                         PreviewPane(
                             markdown = currentState.previewMarkdown,
+                            onTaskToggle = viewModel::toggleTaskItem,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -144,7 +158,9 @@ fun MarkPadScreen(
                     charCount = currentState.charCount,
                     saveStatus = currentState.saveStatus,
                     statusMessage = currentState.statusMessage,
-                    activeNote = currentState.selectedNote
+                    activeNote = currentState.selectedNote,
+                    completedTasks = currentState.completedTaskCount,
+                    totalTasks = currentState.totalTaskCount
                 )
 
                 // Open Markdown File Dialog

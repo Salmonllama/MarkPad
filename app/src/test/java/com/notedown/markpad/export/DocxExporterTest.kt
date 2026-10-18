@@ -107,4 +107,40 @@ class DocxExporterTest {
         assertTrue("Contains center justification", documentXml.contains("<w:jc w:val=\"center\"/>"))
         assertTrue("Contains right justification", documentXml.contains("<w:jc w:val=\"right\"/>"))
     }
+
+    @Test
+    fun export_rendersTaskItemsWithCheckboxesAndStrikethrough() {
+        val note = Note(
+            id = "docx-task-test",
+            title = "Task List Note",
+            content = """
+                # Sprint Checklist
+                - [ ] Pending task item
+                - [x] Completed task item
+            """.trimIndent(),
+            updatedAt = System.currentTimeMillis()
+        )
+
+        val exporter = DocxExporter()
+        val outputStream = ByteArrayOutputStream()
+        exporter.export(note, outputStream)
+
+        val bytes = outputStream.toByteArray()
+        val zipEntries = mutableMapOf<String, String>()
+        ZipInputStream(ByteArrayInputStream(bytes)).use { zipIn ->
+            var entry = zipIn.nextEntry
+            while (entry != null) {
+                zipEntries[entry.name] = zipIn.bufferedReader().readText()
+                entry = zipIn.nextEntry
+            }
+        }
+
+        val documentXml = zipEntries["word/document.xml"]
+        assertNotNull(documentXml)
+        assertTrue("Contains unchecked symbol", documentXml!!.contains("☐ "))
+        assertTrue("Contains checked symbol", documentXml.contains("☑ "))
+        assertTrue("Contains pending task text", documentXml.contains("Pending task item"))
+        assertTrue("Contains completed task text", documentXml.contains("Completed task item"))
+        assertTrue("Contains strikethrough formatting for completed task", documentXml.contains("<w:strike/>"))
+    }
 }

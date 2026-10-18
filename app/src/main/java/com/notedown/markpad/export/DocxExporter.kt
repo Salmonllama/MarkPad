@@ -126,6 +126,15 @@ class DocxExporter : NoteExporter {
                 is MarkdownNode.BulletItem -> {
                     bodyContent.append("""<w:p><w:pPr><w:ind w:left="420"/></w:pPr><w:r><w:t xml:space="preserve">• </w:t></w:r>${renderParagraphRuns(node.text)}</w:p>""")
                 }
+                is MarkdownNode.TaskItem -> {
+                    val checkboxSymbol = if (node.isChecked) "☑ " else "☐ "
+                    val runs = if (node.isChecked) {
+                        renderCheckedTaskRuns(node.text)
+                    } else {
+                        renderParagraphRuns(node.text)
+                    }
+                    bodyContent.append("""<w:p><w:pPr><w:ind w:left="420"/></w:pPr><w:r><w:t xml:space="preserve">$checkboxSymbol</w:t></w:r>$runs</w:p>""")
+                }
                 is MarkdownNode.CodeBlock -> {
                     val codeLines = node.code.lines()
                     for (line in codeLines) {
@@ -177,6 +186,31 @@ class DocxExporter : NoteExporter {
                 }
                 is com.notedown.markpad.ui.markdown.InlineSpan.Normal -> {
                     builder.append("""<w:r><w:t xml:space="preserve">${escapeXml(span.text)}</w:t></w:r>""")
+                }
+            }
+        }
+        return builder.toString()
+    }
+
+    private fun renderCheckedTaskRuns(text: String): String {
+        val builder = StringBuilder()
+        val spans = com.notedown.markpad.ui.markdown.InlineMarkdownParser.parse(text)
+        for (span in spans) {
+            when (span) {
+                is com.notedown.markpad.ui.markdown.InlineSpan.Bold -> {
+                    builder.append("""<w:r><w:rPr><w:b/><w:strike/><w:color w:val="777777"/></w:rPr><w:t xml:space="preserve">${escapeXml(span.text)}</w:t></w:r>""")
+                }
+                is com.notedown.markpad.ui.markdown.InlineSpan.Italic -> {
+                    builder.append("""<w:r><w:rPr><w:i/><w:strike/><w:color w:val="777777"/></w:rPr><w:t xml:space="preserve">${escapeXml(span.text)}</w:t></w:r>""")
+                }
+                is com.notedown.markpad.ui.markdown.InlineSpan.BoldItalic -> {
+                    builder.append("""<w:r><w:rPr><w:b/><w:i/><w:strike/><w:color w:val="777777"/></w:rPr><w:t xml:space="preserve">${escapeXml(span.text)}</w:t></w:r>""")
+                }
+                is com.notedown.markpad.ui.markdown.InlineSpan.InlineCode -> {
+                    builder.append("""<w:r><w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/><w:strike/><w:color w:val="777777"/><w:shd w:val="clear" w:color="auto" w:fill="F0F0F0"/></w:rPr><w:t xml:space="preserve">${escapeXml(span.text)}</w:t></w:r>""")
+                }
+                is com.notedown.markpad.ui.markdown.InlineSpan.Normal -> {
+                    builder.append("""<w:r><w:rPr><w:strike/><w:color w:val="777777"/></w:rPr><w:t xml:space="preserve">${escapeXml(span.text)}</w:t></w:r>""")
                 }
             }
         }

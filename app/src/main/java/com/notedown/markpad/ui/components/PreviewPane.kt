@@ -17,6 +17,7 @@ import com.notedown.markpad.ui.markdown.MarkdownRenderer
 @Composable
 fun PreviewPane(
     markdown: String,
+    onTaskToggle: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -36,7 +37,10 @@ fun PreviewPane(
                 letterSpacing = 1.5.sp,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
-            MarkdownRenderer(markdown = markdown)
+            MarkdownRenderer(
+                markdown = markdown,
+                onTaskToggle = onTaskToggle
+            )
         }
     }
 }

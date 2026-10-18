@@ -17,6 +17,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
@@ -66,6 +75,19 @@ fun EditorPane(
 
             // Track contents emitted locally to filter out lagging echoes from the persistence pipeline
             val emittedContents = remember(noteId) { mutableSetOf<String>() }
+
+            val applyEditorValue: (TextFieldValue) -> Unit = { newValue ->
+                val textChanged = newValue.text != textFieldValue.text
+                val selectionChanged = newValue.selection != textFieldValue.selection
+                textFieldValue = newValue
+                if (textChanged) {
+                    emittedContents.add(newValue.text)
+                    onContentChanged(newValue.text)
+                }
+                if (selectionChanged || textChanged) {
+                    onCursorPositionChanged(newValue.selection.end)
+                }
+            }
 
             // Sync with external content changes if they differ from current editor text and aren't an echo of local typing
             LaunchedEffect(note?.content) {
@@ -122,18 +144,7 @@ fun EditorPane(
 
             BasicTextField(
                 value = textFieldValue,
-                onValueChange = { newValue ->
-                    val textChanged = newValue.text != textFieldValue.text
-                    val selectionChanged = newValue.selection != textFieldValue.selection
-                    textFieldValue = newValue
-                    if (textChanged) {
-                        emittedContents.add(newValue.text)
-                        onContentChanged(newValue.text)
-                    }
-                    if (selectionChanged || textChanged) {
-                        onCursorPositionChanged(newValue.selection.end)
-                    }
-                },
+                onValueChange = applyEditorValue,
                 onTextLayout = { layout ->
                     textLayoutResult = layout
                 },
@@ -144,8 +155,76 @@ fun EditorPane(
                     color = MaterialTheme.colorScheme.onBackground
                 ),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onPreviewKeyEvent { event ->
+                        if (
+                            event.type == KeyEventType.KeyDown &&
+                            event.key == Key.Delete &&
+                            event.isShiftPressed &&
+                            !event.isCtrlPressed &&
+                            !event.isAltPressed &&
+                            !event.isMetaPressed
+                        ) {
+                            applyEditorValue(deleteLineAtCursor(textFieldValue))
+                            true
+                        } else {
+                            false
+                        }
+                    }
             )
         }
     }
 }
+
+/**
+ * Deletes the entire line where the cursor (`selection.end`) is currently positioned,
+ * preserving the horizontal column offset (clamped to the resulting current line's length).
+ */
+internal fun deleteLineAtCursor(value: TextFieldValue): TextFieldValue {
+    val text = value.text
+    if (text.isEmpty()) {
+        return TextFieldValue(text = "", selection = TextRange(0))
+    }
+
+    val cursor = value.selection.end.coerceIn(0, text.length)
+    val lastNewline = if (cursor > 0) text.lastIndexOf('\n', startIndex = cursor - 1) else -1
+    val lineStart = if (lastNewline == -1) 0 else lastNewline + 1
+
+    val nextNewline = text.indexOf('\n', startIndex = cursor)
+    val lineEnd = if (nextNewline == -1) text.length else nextNewline
+
+    val column = cursor - lineStart
+
+    return when {
+        // Single-line document
+        lineStart == 0 && lineEnd == text.length -> {
+            TextFieldValue(text = "", selection = TextRange(0))
+        }
+        // First or middle line (followed by '\n')
+        lineEnd < text.length -> {
+            val newText = text.removeRange(lineStart, lineEnd + 1)
+            val nextLineEnd = newText.indexOf('\n', startIndex = lineStart).let {
+                if (it == -1) newText.length else it
+            }
+            val nextLineLength = (nextLineEnd - lineStart).coerceAtLeast(0)
+            val newCursor = lineStart + minOf(column, nextLineLength)
+            TextFieldValue(text = newText, selection = TextRange(newCursor))
+        }
+        // Last line of a multi-line document (preceded by '\n' at lineStart - 1)
+        else -> {
+            val newText = text.removeRange(lineStart - 1, lineEnd)
+            val prevLineStart = if (lineStart - 1 > 0) {
+                newText.lastIndexOf('\n', startIndex = lineStart - 2).let {
+                    if (it == -1) 0 else it + 1
+                }
+            } else {
+                0
+            }
+            val prevLineLength = (newText.length - prevLineStart).coerceAtLeast(0)
+            val newCursor = prevLineStart + minOf(column, prevLineLength)
+            TextFieldValue(text = newText, selection = TextRange(newCursor))
+        }
+    }
+}
+

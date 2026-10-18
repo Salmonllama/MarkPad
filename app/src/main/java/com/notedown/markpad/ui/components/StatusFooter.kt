@@ -24,6 +24,8 @@ fun StatusFooter(
     saveStatus: SaveStatus,
     statusMessage: String?,
     activeNote: Note? = null,
+    completedTasks: Int = 0,
+    totalTasks: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val statusLabel = when (saveStatus) {
@@ -45,6 +47,13 @@ fun StatusFooter(
             Text("$totalNotes scratchpads", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("$wordCount words", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("$charCount characters", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (totalTasks > 0) {
+                Text(
+                    "$completedTasks/$totalTasks tasks",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             if (activeNote?.isExternalFile == true) {
                 val fileLabel = activeNote.sourceFileName ?: activeNote.title
                 Text(

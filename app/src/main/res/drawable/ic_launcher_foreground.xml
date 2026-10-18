@@ -4,20 +4,34 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Stylized Notepad Container -->
-    <path
-        android:fillColor="#0D9488"
-        android:pathData="M30,26h48c3.3,0 6,2.7 6,6v44c0,3.3 -2.7,6 -6,6H30c-3.3,0 -6,-2.7 -6,-6V32c0,-3.3 2.7,-6 6,-6z" />
-    <!-- Notepad Header Bar -->
-    <path
-        android:fillColor="#14B8A6"
-        android:pathData="M24,32h60v6H24z" />
-    <!-- Markdown 'M' Logo -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M32,46h4v16h-4z M46,46h4v16h-4z M34,46l7,7 7,-7v5l-7,7 -7,-7z" />
-    <!-- Markdown Down Arrow '↓' -->
-    <path
-        android:fillColor="#CCFBF1"
-        android:pathData="M64,46h5v9h5l-7.5,7.5L59,55h5z" />
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.68"
+        android:scaleY="0.68">
+        <!-- Subtle Drop Shadow under Green Document -->
+        <path
+            android:fillColor="#1A000000"
+            android:pathData="M32,21.5H66L80,35.5V84.5C80,86.98 77.98,89 75.5,89H32.5C30.02,89 28,86.98 28,84.5V26C28,23.52 30.02,21.5 32.5,21.5Z" />
+        <!-- Green Document Base -->
+        <path
+            android:fillColor="#2F9957"
+            android:pathData="M32.5,20.5H66L80,34.5V83C80,85.48 77.98,87.5 75.5,87.5H32.5C30.02,87.5 28,85.48 28,83V25C28,22.52 30.02,20.5 32.5,20.5Z" />
+        <!-- Folded Corner Diagonal Shadow -->
+        <path
+            android:fillColor="#268248"
+            android:pathData="M66,34.5L80,34.5L80,48.5Z" />
+        <!-- Folded Top-Right Corner Flap (Lime Green) -->
+        <path
+            android:fillColor="#C2DD58"
+            android:pathData="M66,20.5L80,34.5H69.5C67.57,34.5 66,32.93 66,31V20.5Z" />
+        <!-- White Markdown Hash '#' Symbol -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M49.5,32.7H53.3L49.5,53.8H45.7L49.5,32.7ZM58.1,32.7H61.9L58.1,53.8H54.3L58.1,32.7ZM44.3,37.8H64.5V41.1H44.3V37.8ZM43.2,46.0H63.5V49.3H43.2V46.0Z" />
+        <!-- White Markdown Down Arrow '↓' Symbol -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M49.8,58.0H58.2V68.5H65.6L54.0,80.3L42.4,68.5H49.8V58.0Z" />
+    </group>
 </vector>

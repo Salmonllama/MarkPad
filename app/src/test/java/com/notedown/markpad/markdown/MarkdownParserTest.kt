@@ -198,4 +198,45 @@ class MarkdownParserTest {
         assertEquals(MarkdownNode.BulletItem("Trailing bullet 1"), nodes[3])
         assertEquals(MarkdownNode.BulletItem("Trailing bullet 2"), nodes[4])
     }
+
+    @Test
+    fun parseTaskItems_handlesUncheckedAndCheckedDashesAndAsterisks() {
+        val input = """
+            - [ ] Unchecked dash task
+            - [x] Checked lowercase task
+            - [X] Checked uppercase task
+            * [ ] Unchecked asterisk task
+            * [x] Checked asterisk task
+            - [ ]
+        """.trimIndent()
+
+        val nodes = MarkdownParser.parse(input)
+
+        assertEquals(6, nodes.size)
+        assertEquals(MarkdownNode.TaskItem(isChecked = false, text = "Unchecked dash task", lineIndex = 0), nodes[0])
+        assertEquals(MarkdownNode.TaskItem(isChecked = true, text = "Checked lowercase task", lineIndex = 1), nodes[1])
+        assertEquals(MarkdownNode.TaskItem(isChecked = true, text = "Checked uppercase task", lineIndex = 2), nodes[2])
+        assertEquals(MarkdownNode.TaskItem(isChecked = false, text = "Unchecked asterisk task", lineIndex = 3), nodes[3])
+        assertEquals(MarkdownNode.TaskItem(isChecked = true, text = "Checked asterisk task", lineIndex = 4), nodes[4])
+        assertEquals(MarkdownNode.TaskItem(isChecked = false, text = "", lineIndex = 5), nodes[5])
+    }
+
+    @Test
+    fun parseMixedBulletsAndTaskItems_tracksAccurateLineIndices() {
+        val input = """
+            # Sprint Tasks
+
+            - Standard bullet item
+            - [ ] First actionable task
+            * [x] Completed second task
+        """.trimIndent()
+
+        val nodes = MarkdownParser.parse(input)
+
+        assertEquals(4, nodes.size)
+        assertEquals(MarkdownNode.Header(1, "Sprint Tasks"), nodes[0])
+        assertEquals(MarkdownNode.BulletItem("Standard bullet item"), nodes[1])
+        assertEquals(MarkdownNode.TaskItem(isChecked = false, text = "First actionable task", lineIndex = 3), nodes[2])
+        assertEquals(MarkdownNode.TaskItem(isChecked = true, text = "Completed second task", lineIndex = 4), nodes[3])
+    }
 }

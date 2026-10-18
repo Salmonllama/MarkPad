@@ -11,6 +11,7 @@ import android.text.Spanned
 import android.text.StaticLayout
 import android.text.TextPaint
 import android.text.style.BackgroundColorSpan
+import android.text.style.StrikethroughSpan
 import android.text.style.StyleSpan
 import android.text.style.TypefaceSpan
 import com.notedown.markpad.model.Note
@@ -209,6 +210,32 @@ class PdfExporter(
                         canvas.drawText("•", MARGIN_HORIZONTAL, currentY + baseline, bulletPaint)
 
                         drawLayout(layout, MARGIN_HORIZONTAL + bulletIndent, bulletWidth.toFloat(), spacingAfter = 4f)
+                    }
+                    is MarkdownNode.TaskItem -> {
+                        val spans = InlineMarkdownParser.parse(node.text)
+                        val ssb = buildSpannable(spans)
+                        if (node.isChecked && ssb.isNotEmpty()) {
+                            ssb.setSpan(StrikethroughSpan(), 0, ssb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        }
+                        val taskIndent = 18f
+                        val taskWidth = (contentWidth - taskIndent).toInt()
+                        val itemPaint = if (node.isChecked) {
+                            TextPaint(textPaint).apply { color = Color.rgb(120, 120, 120) }
+                        } else {
+                            textPaint
+                        }
+                        val layout = createLayout(ssb, itemPaint, taskWidth)
+
+                        val firstLineHeight = if (layout.lineCount > 0) {
+                            (layout.getLineBottom(0) - layout.getLineTop(0)).toFloat()
+                        } else 15f
+                        checkPageBreak(firstLineHeight)
+
+                        val baseline = if (layout.lineCount > 0) layout.getLineBaseline(0).toFloat() else 12f
+                        val checkboxSymbol = if (node.isChecked) "☑" else "☐"
+                        canvas.drawText(checkboxSymbol, MARGIN_HORIZONTAL, currentY + baseline, bulletPaint)
+
+                        drawLayout(layout, MARGIN_HORIZONTAL + taskIndent, taskWidth.toFloat(), spacingAfter = 4f)
                     }
                     is MarkdownNode.CodeBlock -> {
                         val codeLines = node.code.lines()

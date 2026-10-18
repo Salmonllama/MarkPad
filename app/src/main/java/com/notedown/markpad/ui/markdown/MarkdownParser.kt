@@ -14,6 +14,11 @@ sealed interface MarkdownNode {
     data class Header(val level: Int, val text: String) : MarkdownNode
     data class Paragraph(val text: String) : MarkdownNode
     data class BulletItem(val text: String) : MarkdownNode
+    data class TaskItem(
+        val isChecked: Boolean,
+        val text: String,
+        val lineIndex: Int
+    ) : MarkdownNode
     data class CodeBlock(val language: String, val code: String) : MarkdownNode
     data class Blockquote(val text: String) : MarkdownNode
     data object HorizontalRule : MarkdownNode
@@ -26,6 +31,7 @@ sealed interface MarkdownNode {
 
 object MarkdownParser {
     private val DELIMITER_CELL_REGEX = Regex("""^:?-+:?$""")
+    private val TASK_ITEM_REGEX = Regex("""^[-*]\s+\[([ xX])](\s+(.*))?$""")
     private const val ESCAPED_PIPE_PLACEHOLDER = "\u0000_ESCAPED_PIPE_\u0000"
 
     fun parse(markdown: String): List<MarkdownNode> {
@@ -100,11 +106,17 @@ object MarkdownParser {
                 continue
             }
 
+            val taskMatch = TASK_ITEM_REGEX.matchEntire(trimmed)
             when {
                 trimmed == "---" || trimmed == "***" -> nodes.add(MarkdownNode.HorizontalRule)
                 trimmed.startsWith("### ") -> nodes.add(MarkdownNode.Header(3, trimmed.removePrefix("### ").trim()))
                 trimmed.startsWith("## ") -> nodes.add(MarkdownNode.Header(2, trimmed.removePrefix("## ").trim()))
                 trimmed.startsWith("# ") -> nodes.add(MarkdownNode.Header(1, trimmed.removePrefix("# ").trim()))
+                taskMatch != null -> {
+                    val isChecked = taskMatch.groupValues[1].equals("x", ignoreCase = true)
+                    val taskText = taskMatch.groupValues[3].trim()
+                    nodes.add(MarkdownNode.TaskItem(isChecked = isChecked, text = taskText, lineIndex = i))
+                }
                 trimmed.startsWith("- ") -> nodes.add(MarkdownNode.BulletItem(trimmed.removePrefix("- ").trim()))
                 trimmed.startsWith("* ") -> nodes.add(MarkdownNode.BulletItem(trimmed.removePrefix("* ").trim()))
                 trimmed.startsWith("> ") -> nodes.add(MarkdownNode.Blockquote(trimmed.removePrefix("> ").trim()))

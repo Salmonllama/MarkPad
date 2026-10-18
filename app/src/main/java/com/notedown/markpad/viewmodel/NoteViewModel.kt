@@ -268,6 +268,28 @@ class NoteViewModel(
         _previewDebounceFlow.value = newContent
     }
 
+    fun toggleTaskItem(lineIndex: Int) {
+        val currentReady = uiState.value as? NoteUiState.Ready ?: return
+        val currentContent = _activeDraft.value?.content ?: currentReady.selectedNote?.content ?: return
+        val lines = currentContent.lines().toMutableList()
+        if (lineIndex !in lines.indices) return
+
+        val line = lines[lineIndex]
+        val taskRegex = Regex("""^(\s*[-*]\s+\[)([ xX])(].*)$""")
+        val match = taskRegex.matchEntire(line) ?: return
+
+        val prefix = match.groupValues[1]
+        val currentMarker = match.groupValues[2]
+        val suffix = match.groupValues[3]
+        val newMarker = if (currentMarker.equals("x", ignoreCase = true)) " " else "x"
+
+        lines[lineIndex] = "$prefix$newMarker$suffix"
+        val updatedContent = lines.joinToString("\n")
+
+        _previewMarkdown.value = updatedContent
+        onContentChanged(updatedContent)
+    }
+
     fun selectNote(id: String) {
         val previousDraft = _activeDraft.value
         if (previousDraft != null && previousDraft.id != id) {

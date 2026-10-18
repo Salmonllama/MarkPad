@@ -48,5 +48,17 @@ sealed interface NoteUiState {
 
         val charCount: Int
             get() = selectedNote?.content?.length ?: 0
+
+        private val taskItems: List<com.notedown.markpad.ui.markdown.MarkdownNode.TaskItem>
+            get() = selectedNote?.content
+                ?.let { com.notedown.markpad.ui.markdown.MarkdownParser.parse(it) }
+                ?.filterIsInstance<com.notedown.markpad.ui.markdown.MarkdownNode.TaskItem>()
+                .orEmpty()
+
+        val totalTaskCount: Int
+            get() = taskItems.size
+
+        val completedTaskCount: Int
+            get() = taskItems.count { it.isChecked }
     }
 }
