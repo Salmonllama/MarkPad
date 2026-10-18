@@ -1,8 +1,11 @@
 package io.salmonllama.MarkPad.markdown
 
+import io.salmonllama.MarkPad.ui.markdown.AlertType
 import io.salmonllama.MarkPad.ui.markdown.MarkdownNode
 import io.salmonllama.MarkPad.ui.markdown.MarkdownParser
+import io.salmonllama.MarkPad.ui.markdown.TableAlignment
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -25,6 +28,28 @@ class MarkdownParserTest {
     }
 
     @Test
+    fun parseHeaders_supportsLevels4To6AndClosingHashesAndSetext() {
+        val input = """
+            #### Heading 4
+            ##### Heading 5 #####
+            ###### Heading 6
+            Setext Heading 1
+            ================
+            Setext Heading 2
+            ----------------
+        """.trimIndent()
+
+        val nodes = MarkdownParser.parse(input)
+
+        assertEquals(5, nodes.size)
+        assertEquals(MarkdownNode.Header(4, "Heading 4"), nodes[0])
+        assertEquals(MarkdownNode.Header(5, "Heading 5"), nodes[1])
+        assertEquals(MarkdownNode.Header(6, "Heading 6"), nodes[2])
+        assertEquals(MarkdownNode.Header(1, "Setext Heading 1"), nodes[3])
+        assertEquals(MarkdownNode.Header(2, "Setext Heading 2"), nodes[4])
+    }
+
+    @Test
     fun parseCodeBlock_correctlyCapturesLanguageAndCode() {
         val input = """
             ```kotlin
@@ -43,6 +68,28 @@ class MarkdownParserTest {
     }
 
     @Test
+    fun parseCodeBlock_supportsTildeFencesAndIndentedCodeBlocks() {
+        val input = """
+            ~~~python
+            def greet():
+                return "hello"
+            ~~~
+
+            Paragraph before indented code:
+
+                val indented = true
+                println(indented)
+        """.trimIndent()
+
+        val nodes = MarkdownParser.parse(input)
+
+        assertEquals(3, nodes.size)
+        assertEquals(MarkdownNode.CodeBlock("python", "def greet():\n    return \"hello\""), nodes[0])
+        assertEquals(MarkdownNode.Paragraph("Paragraph before indented code:"), nodes[1])
+        assertEquals(MarkdownNode.CodeBlock("", "val indented = true\nprintln(indented)"), nodes[2])
+    }
+
+    @Test
     fun parseBulletItems_handlesDashesAndAsterisks() {
         val input = """
             - Item Alpha
@@ -54,6 +101,28 @@ class MarkdownParserTest {
         assertEquals(2, nodes.size)
         assertEquals(MarkdownNode.BulletItem("Item Alpha"), nodes[0])
         assertEquals(MarkdownNode.BulletItem("Item Beta"), nodes[1])
+    }
+
+    @Test
+    fun parseLists_supportsPlusMarkersOrderedListsAndNesting() {
+        val input = """
+            + Plus item root
+              - Nested level 1
+                * Nested level 2
+            1. First step
+            2) Second step
+              1. Sub-step A
+        """.trimIndent()
+
+        val nodes = MarkdownParser.parse(input)
+
+        assertEquals(6, nodes.size)
+        assertEquals(MarkdownNode.BulletItem("Plus item root", indentLevel = 0), nodes[0])
+        assertEquals(MarkdownNode.BulletItem("Nested level 1", indentLevel = 1), nodes[1])
+        assertEquals(MarkdownNode.BulletItem("Nested level 2", indentLevel = 2), nodes[2])
+        assertEquals(MarkdownNode.OrderedItem(1, "First step", indentLevel = 0), nodes[3])
+        assertEquals(MarkdownNode.OrderedItem(2, "Second step", indentLevel = 0), nodes[4])
+        assertEquals(MarkdownNode.OrderedItem(1, "Sub-step A", indentLevel = 1), nodes[5])
     }
 
     @Test
@@ -71,6 +140,89 @@ class MarkdownParserTest {
     }
 
     @Test
+    fun parseNestedBlockquotesAndExtendedHorizontalRules() {
+        val input = """
+            > Level 1 quote
+            >> Level 2 quote
+            > > > Level 3 quote
+            ___
+            - - -
+            * * *
+        """.trimIndent()
+
+        val nodes = MarkdownParser.parse(input)
+
+        assertEquals(6, nodes.size)
+        assertEquals(MarkdownNode.Blockquote("Level 1 quote", depth = 1), nodes[0])
+        assertEquals(MarkdownNode.Blockquote("Level 2 quote", depth = 2), nodes[1])
+        assertEquals(MarkdownNode.Blockquote("Level 3 quote", depth = 3), nodes[2])
+        assertEquals(MarkdownNode.HorizontalRule, nodes[3])
+        assertEquals(MarkdownNode.HorizontalRule, nodes[4])
+        assertEquals(MarkdownNode.HorizontalRule, nodes[5])
+    }
+
+    @Test
+    fun parseGitHubAlerts_parsesAllFiveAlertTypes() {
+        val input = """
+            > [!NOTE]
+            > Useful information that users should know.
+
+            > [!TIP]
+            > Helpful advice for doing things better.
+
+            > [!IMPORTANT]
+            > Key information users need to know to achieve their goal.
+
+            > [!WARNING]
+            > Urgent info that needs immediate user attention.
+
+            > [!CAUTION]
+            > Advises about risks or negative outcomes.
+        """.trimIndent()
+
+        val nodes = MarkdownParser.parse(input)
+
+        assertEquals(5, nodes.size)
+        assertEquals(MarkdownNode.AlertBlock(AlertType.NOTE, "Useful information that users should know."), nodes[0])
+        assertEquals(MarkdownNode.AlertBlock(AlertType.TIP, "Helpful advice for doing things better."), nodes[1])
+        assertEquals(MarkdownNode.AlertBlock(AlertType.IMPORTANT, "Key information users need to know to achieve their goal."), nodes[2])
+        assertEquals(MarkdownNode.AlertBlock(AlertType.WARNING, "Urgent info that needs immediate user attention."), nodes[3])
+        assertEquals(MarkdownNode.AlertBlock(AlertType.CAUTION, "Advises about risks or negative outcomes."), nodes[4])
+    }
+
+    @Test
+    fun parseDetailsAndFootnotesAndReferenceLinks() {
+        val input = """
+            Check out the [GitHub Spec][gfm] and [MarkPad][] with footnote[^1].
+
+            <details open>
+            <summary>Release Notes</summary>
+            New GFM parser enabled.
+            </details>
+
+            [^1]: GitHub Flavored Markdown specification.
+            [gfm]: https://github.github.com/gfm/ "GFM Spec"
+            [markpad]: https://example.com/markpad
+        """.trimIndent()
+
+        val nodes = MarkdownParser.parse(input)
+
+        assertEquals(3, nodes.size)
+        assertEquals(
+            MarkdownNode.Paragraph(
+                "Check out the [GitHub Spec](https://github.github.com/gfm/ \"GFM Spec\") and [MarkPad](https://example.com/markpad) with footnote[^1]."
+            ),
+            nodes[0]
+        )
+        val details = nodes[1] as MarkdownNode.DetailsBlock
+        assertEquals("Release Notes", details.summary)
+        assertEquals("New GFM parser enabled.", details.body)
+        assertTrue(details.isOpenByDefault)
+
+        assertEquals(MarkdownNode.FootnoteDefinition("1", "GitHub Flavored Markdown specification."), nodes[2])
+    }
+
+    @Test
     fun parseTable_basicHeaderAndRows() {
         val input = """
             | First Header | Second Header |
@@ -85,7 +237,7 @@ class MarkdownParserTest {
         assertTrue(nodes[0] is MarkdownNode.Table)
         val table = nodes[0] as MarkdownNode.Table
         assertEquals(listOf("First Header", "Second Header"), table.headers)
-        assertEquals(listOf(io.salmonllama.MarkPad.ui.markdown.TableAlignment.LEFT, io.salmonllama.MarkPad.ui.markdown.TableAlignment.LEFT), table.alignments)
+        assertEquals(listOf(TableAlignment.LEFT, TableAlignment.LEFT), table.alignments)
         assertEquals(2, table.rows.size)
         assertEquals(listOf("Content Cell", "Content Cell"), table.rows[0].cells)
         assertEquals(listOf("Content Cell", "Content Cell"), table.rows[1].cells)
@@ -106,9 +258,9 @@ class MarkdownParserTest {
         assertEquals(listOf("Left-aligned", "Center-aligned", "Right-aligned"), table.headers)
         assertEquals(
             listOf(
-                io.salmonllama.MarkPad.ui.markdown.TableAlignment.LEFT,
-                io.salmonllama.MarkPad.ui.markdown.TableAlignment.CENTER,
-                io.salmonllama.MarkPad.ui.markdown.TableAlignment.RIGHT
+                TableAlignment.LEFT,
+                TableAlignment.CENTER,
+                TableAlignment.RIGHT
             ),
             table.alignments
         )

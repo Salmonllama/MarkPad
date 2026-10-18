@@ -657,4 +657,39 @@ class NoteViewModelTest {
         assertEquals(0, ready.completedTaskCount)
         assertTrue(ready.selectedNote!!.content.lines()[firstTaskLineIndex].contains("- [ ]"))
     }
+
+    @Test
+    fun toggleTaskItem_supportsPlusMarkerNumberedAndNestedTasksAndMultiHashTitle() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect()
+        }
+        advanceUntilIdle()
+
+        val gfmChecklist = """
+            ### Sprint Subtasks
+            + [ ] Plus task item
+            1. [ ] Numbered task item
+              - [ ] Nested task item
+        """.trimIndent()
+
+        viewModel.onContentChanged(gfmChecklist)
+        advanceUntilIdle()
+
+        var ready = viewModel.uiState.value as NoteUiState.Ready
+        assertEquals("Sprint Subtasks", ready.selectedNote?.title)
+        assertEquals(3, ready.totalTaskCount)
+        assertEquals(0, ready.completedTaskCount)
+
+        viewModel.toggleTaskItem(1)
+        viewModel.toggleTaskItem(2)
+        viewModel.toggleTaskItem(3)
+        testScheduler.runCurrent()
+
+        ready = viewModel.uiState.value as NoteUiState.Ready
+        assertEquals(3, ready.completedTaskCount)
+        val updatedLines = ready.selectedNote!!.content.lines()
+        assertEquals("+ [x] Plus task item", updatedLines[1])
+        assertEquals("1. [x] Numbered task item", updatedLines[2])
+        assertEquals("  - [x] Nested task item", updatedLines[3])
+    }
 }

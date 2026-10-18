@@ -254,7 +254,7 @@ class NoteViewModel(
 
         val derivedTitle = newContent.lines()
             .firstOrNull { it.isNotBlank() }
-            ?.removePrefix("#")
+            ?.trimStart('#')
             ?.trim()
             ?: "Untitled Scratchpad"
 
@@ -275,7 +275,7 @@ class NoteViewModel(
         if (lineIndex !in lines.indices) return
 
         val line = lines[lineIndex]
-        val taskRegex = Regex("""^(\s*[-*]\s+\[)([ xX])(].*)$""")
+        val taskRegex = Regex("""^(\s*(?:[-*+]|\d+[.)])\s+\[)([ xX])(].*)$""")
         val match = taskRegex.matchEntire(line) ?: return
 
         val prefix = match.groupValues[1]
