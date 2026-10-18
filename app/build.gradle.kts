@@ -7,14 +7,14 @@ plugins {
 
 android {
     namespace = "io.salmonllama.MarkPad"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "io.salmonllama.MarkPad"
         minSdk = 26
-        targetSdk = 34
-        versionCode = 7
-        versionName = "1.2.3"
+        targetSdk = 36
+        versionCode = 8
+        versionName = "1.2.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
