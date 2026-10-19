@@ -105,6 +105,119 @@ class NoteViewModelTest {
     }
 
     @Test
+    fun toggleFullPreview_hidesEditorAndShowsPreview() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect()
+        }
+        advanceUntilIdle()
+
+        val initial = viewModel.uiState.value as NoteUiState.Ready
+        assertTrue(initial.isEditorVisible)
+        assertTrue(initial.isPreviewVisible)
+
+        // Toggle into full preview mode
+        viewModel.toggleFullPreview()
+        advanceUntilIdle()
+
+        val fullPreview = viewModel.uiState.value as NoteUiState.Ready
+        assertFalse(fullPreview.isEditorVisible)
+        assertTrue(fullPreview.isPreviewVisible)
+
+        // Toggle back
+        viewModel.toggleFullPreview()
+        advanceUntilIdle()
+
+        val restored = viewModel.uiState.value as NoteUiState.Ready
+        assertTrue(restored.isEditorVisible)
+        assertTrue(restored.isPreviewVisible)
+    }
+
+    @Test
+    fun toggleFullPreview_whenPreviewWasHidden_activatesFullPreview() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect()
+        }
+        advanceUntilIdle()
+
+        viewModel.togglePreview()
+        advanceUntilIdle()
+
+        val previewHidden = viewModel.uiState.value as NoteUiState.Ready
+        assertFalse(previewHidden.isPreviewVisible)
+        assertTrue(previewHidden.isEditorVisible)
+
+        // Toggle into full preview
+        viewModel.toggleFullPreview()
+        advanceUntilIdle()
+
+        val fullPreview = viewModel.uiState.value as NoteUiState.Ready
+        assertFalse(fullPreview.isEditorVisible)
+        assertTrue(fullPreview.isPreviewVisible)
+    }
+
+    @Test
+    fun togglePreview_whenInFullPreviewMode_restoresEditor() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect()
+        }
+        advanceUntilIdle()
+
+        viewModel.toggleFullPreview()
+        advanceUntilIdle()
+
+        val fullPreview = viewModel.uiState.value as NoteUiState.Ready
+        assertFalse(fullPreview.isEditorVisible)
+        assertTrue(fullPreview.isPreviewVisible)
+
+        // Toggling preview when editor is hidden restores editor to prevent empty screen
+        viewModel.togglePreview()
+        advanceUntilIdle()
+
+        val restored = viewModel.uiState.value as NoteUiState.Ready
+        assertTrue(restored.isEditorVisible)
+        assertTrue(restored.isPreviewVisible)
+    }
+
+    @Test
+    fun toggleFullPreview_flushesActiveDraftImmediately() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect()
+        }
+        advanceUntilIdle()
+
+        val newText = "# Instant Update\nImmediately flushed to preview."
+        viewModel.onContentChanged(newText)
+
+        // Before debounce, activeDraft is updated but previewDebounce has not fired yet
+        viewModel.toggleFullPreview()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value as NoteUiState.Ready
+        assertFalse(state.isEditorVisible)
+        assertEquals(newText, state.previewMarkdown)
+    }
+
+    @Test
+    fun createNewNote_restoresEditorVisibility() = runTest {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect()
+        }
+        advanceUntilIdle()
+
+        viewModel.toggleFullPreview()
+        advanceUntilIdle()
+
+        val fullPreview = viewModel.uiState.value as NoteUiState.Ready
+        assertFalse(fullPreview.isEditorVisible)
+
+        viewModel.createNewNote()
+        advanceUntilIdle()
+
+        val ready = viewModel.uiState.value as NoteUiState.Ready
+        assertTrue(ready.isEditorVisible)
+    }
+
+    @Test
     fun searchNotes_filtersByTitleOrContent() = runTest {
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect()

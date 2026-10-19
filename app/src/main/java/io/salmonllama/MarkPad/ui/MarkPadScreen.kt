@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FolderOpen
@@ -66,6 +67,7 @@ fun MarkPadScreen(
                         onNewNote = viewModel::createNewNote,
                         onSave = viewModel::triggerSave,
                         onTogglePreview = viewModel::togglePreview,
+                        onToggleFullPreview = viewModel::toggleFullPreview,
                         onOpenFile = viewModel::openFileDialog,
                         onExport = viewModel::openExportDialog,
                         onOpenSettings = viewModel::openSettingsDialog
@@ -106,6 +108,17 @@ fun MarkPadScreen(
                                 contentDescription = "Toggle Preview (Ctrl+P)"
                             )
                         }
+                        IconButton(onClick = viewModel::toggleFullPreview) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.MenuBook,
+                                contentDescription = "Full Preview (Ctrl+R)",
+                                tint = if (!currentState.isEditorVisible && currentState.isPreviewVisible) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                }
+                            )
+                        }
                         IconButton(onClick = viewModel::openSettingsDialog) {
                             Icon(Icons.Default.Settings, contentDescription = "Settings (Ctrl+,)")
                         }
@@ -132,18 +145,22 @@ fun MarkPadScreen(
                     VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                     // Middle Pane: Editor
-                    EditorPane(
-                        note = currentState.selectedNote,
-                        initialCursorPosition = currentState.cursorPosition,
-                        editorFont = currentState.editorFont,
-                        onContentChanged = viewModel::onContentChanged,
-                        onCursorPositionChanged = viewModel::onCursorPositionChanged,
-                        modifier = Modifier.weight(1f)
-                    )
+                    if (currentState.isEditorVisible) {
+                        EditorPane(
+                            note = currentState.selectedNote,
+                            initialCursorPosition = currentState.cursorPosition,
+                            editorFont = currentState.editorFont,
+                            onContentChanged = viewModel::onContentChanged,
+                            onCursorPositionChanged = viewModel::onCursorPositionChanged,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
 
                     // Right Pane: Preview (Collapsible)
                     if (currentState.isPreviewVisible) {
-                        VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        if (currentState.isEditorVisible) {
+                            VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        }
 
                         PreviewPane(
                             markdown = currentState.previewMarkdown,

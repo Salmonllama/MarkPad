@@ -64,6 +64,7 @@ class NoteViewModel(
     private val _cursorPosition = MutableStateFlow(preferencesRepository.getLastCursorPosition(initialNoteId))
     private val _searchQuery = MutableStateFlow("")
     private val _isPreviewVisible = MutableStateFlow(true)
+    private val _isEditorVisible = MutableStateFlow(true)
     private val _saveStatus = MutableStateFlow<SaveStatus>(SaveStatus.Saved)
     private val _statusNotification = MutableStateFlow<String?>(null)
     private val _isExportDialogOpen = MutableStateFlow(false)
@@ -96,15 +97,17 @@ class NoteViewModel(
     private data class EditorControlState(
         val cursorPosition: Int,
         val previewMarkdown: String,
-        val activeDraft: ActiveNoteDraft?
+        val activeDraft: ActiveNoteDraft?,
+        val isEditorVisible: Boolean
     )
 
     private val _editorState = combine(
         _cursorPosition,
         _previewMarkdown,
-        _activeDraft
-    ) { cursor, preview, draft ->
-        EditorControlState(cursor, preview, draft)
+        _activeDraft,
+        _isEditorVisible
+    ) { cursor, preview, draft, isEditorVisible ->
+        EditorControlState(cursor, preview, draft, isEditorVisible)
     }
 
     private data class SettingsControlState(
@@ -161,6 +164,7 @@ class NoteViewModel(
             previewMarkdown = editor.previewMarkdown,
             searchQuery = controls.query,
             isPreviewVisible = controls.isPreview,
+            isEditorVisible = editor.isEditorVisible,
             saveStatus = controls.saveState,
             statusMessage = controls.message,
             isExportDialogOpen = controls.isExportDialogOpen,
@@ -324,7 +328,26 @@ class NoteViewModel(
     }
 
     fun togglePreview() {
-        _isPreviewVisible.update { !it }
+        if (!_isEditorVisible.value) {
+            // When in full preview mode (editor hidden), toggling preview restores editor visibility
+            // to ensure at least one content pane remains visible.
+            _isEditorVisible.value = true
+        } else {
+            _isPreviewVisible.update { !it }
+        }
+    }
+
+    fun toggleFullPreview() {
+        // Immediately flush any in-flight un-debounced typing draft to the preview
+        _activeDraft.value?.let { draft ->
+            _previewMarkdown.value = draft.content
+        }
+        if (_isEditorVisible.value) {
+            _isEditorVisible.value = false
+            _isPreviewVisible.value = true
+        } else {
+            _isEditorVisible.value = true
+        }
     }
 
     fun createNewNote() {
@@ -337,6 +360,7 @@ class NoteViewModel(
                 title = "New Scratchpad",
                 content = "# New Scratchpad\n\nStart typing markdown here..."
             )
+            _isEditorVisible.value = true
             _selectedNoteId.value = newNote.id
             preferencesRepository.setLastOpenedNoteId(newNote.id)
             _cursorPosition.value = 0

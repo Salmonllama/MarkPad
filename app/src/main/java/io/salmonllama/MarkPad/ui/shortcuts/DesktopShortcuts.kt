@@ -12,6 +12,7 @@ fun Modifier.handleMarkPadShortcuts(
     onNewNote: () -> Unit,
     onSave: () -> Unit,
     onTogglePreview: () -> Unit,
+    onToggleFullPreview: () -> Unit = {},
     onOpenFile: () -> Unit = {},
     onExport: () -> Unit = {},
     onOpenSettings: () -> Unit = {}
@@ -32,6 +33,10 @@ fun Modifier.handleMarkPadShortcuts(
             }
             Key.P -> {
                 onTogglePreview()
+                true
+            }
+            Key.R -> {
+                onToggleFullPreview()
                 true
             }
             Key.E -> {

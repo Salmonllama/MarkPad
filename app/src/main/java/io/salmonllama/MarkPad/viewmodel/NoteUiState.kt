@@ -17,6 +17,7 @@ sealed interface NoteUiState {
         val previewMarkdown: String = "",
         val searchQuery: String = "",
         val isPreviewVisible: Boolean = true,
+        val isEditorVisible: Boolean = true,
         val saveStatus: SaveStatus = SaveStatus.Saved,
         val statusMessage: String? = null,
         val isExportDialogOpen: Boolean = false,
