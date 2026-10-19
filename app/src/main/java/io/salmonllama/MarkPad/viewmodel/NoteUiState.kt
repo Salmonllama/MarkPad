@@ -21,7 +21,6 @@ sealed interface NoteUiState {
         val saveStatus: SaveStatus = SaveStatus.Saved,
         val statusMessage: String? = null,
         val isExportDialogOpen: Boolean = false,
-        val isOpenFileDialogOpen: Boolean = false,
         val cursorPosition: Int = 0,
         val appTheme: io.salmonllama.MarkPad.model.AppTheme = io.salmonllama.MarkPad.model.AppTheme.DARK,
         val editorFont: io.salmonllama.MarkPad.model.AppFont = io.salmonllama.MarkPad.model.AppFont.MONOSPACE,

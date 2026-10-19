@@ -32,15 +32,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.ui.unit.dp
 import io.salmonllama.MarkPad.R
+import androidx.compose.foundation.ScrollState
+import androidx.compose.runtime.saveable.rememberSaveable
 import io.salmonllama.MarkPad.ui.components.EditorPane
 import io.salmonllama.MarkPad.ui.components.ExportNoteDialog
-import io.salmonllama.MarkPad.ui.components.OpenFileDialog
+import io.salmonllama.MarkPad.ui.components.OpenMarkdownDocumentContract
 import io.salmonllama.MarkPad.ui.components.PreviewPane
 import io.salmonllama.MarkPad.ui.components.SettingsDialog
 import io.salmonllama.MarkPad.ui.components.SidebarPane
 import io.salmonllama.MarkPad.ui.components.StatusFooter
+import io.salmonllama.MarkPad.ui.components.SynchronizedScrollCoordinator
 import io.salmonllama.MarkPad.ui.shortcuts.handleMarkPadShortcuts
 import io.salmonllama.MarkPad.viewmodel.NoteUiState
 import io.salmonllama.MarkPad.viewmodel.NoteViewModel
@@ -52,6 +56,14 @@ fun MarkPadScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsState()
+
+    val openFileLauncher = rememberLauncherForActivityResult(
+        contract = OpenMarkdownDocumentContract()
+    ) { uri ->
+        if (uri != null) {
+            viewModel.openExternalFile(uri.toString())
+        }
+    }
 
     when (val currentState = state) {
         is NoteUiState.Loading -> {
@@ -68,7 +80,7 @@ fun MarkPadScreen(
                         onSave = viewModel::triggerSave,
                         onTogglePreview = viewModel::togglePreview,
                         onToggleFullPreview = viewModel::toggleFullPreview,
-                        onOpenFile = viewModel::openFileDialog,
+                        onOpenFile = { openFileLauncher.launch(null) },
                         onExport = viewModel::openExportDialog,
                         onOpenSettings = viewModel::openSettingsDialog
                     )
@@ -92,7 +104,7 @@ fun MarkPadScreen(
                         containerColor = MaterialTheme.colorScheme.surface
                     ),
                     actions = {
-                        IconButton(onClick = viewModel::openFileDialog) {
+                        IconButton(onClick = { openFileLauncher.launch(null) }) {
                             Icon(Icons.Default.FolderOpen, contentDescription = "Open File (Ctrl+O)")
                         }
                         IconButton(onClick = viewModel::triggerSave) {
@@ -125,6 +137,18 @@ fun MarkPadScreen(
                     }
                 )
 
+                val noteId = currentState.selectedNoteId
+                val editorScrollState = rememberSaveable(noteId, saver = ScrollState.Saver) { ScrollState(0) }
+                val previewScrollState = rememberSaveable(noteId, saver = ScrollState.Saver) { ScrollState(0) }
+
+                SynchronizedScrollCoordinator(
+                    editorScrollState = editorScrollState,
+                    previewScrollState = previewScrollState,
+                    isEditorVisible = currentState.isEditorVisible,
+                    isPreviewVisible = currentState.isPreviewVisible,
+                    noteId = noteId
+                )
+
                 // 3-Pane Horizontal Layout
                 Row(modifier = Modifier.weight(1f)) {
                     // Left Pane: Sidebar
@@ -135,7 +159,7 @@ fun MarkPadScreen(
                         onQueryChanged = viewModel::updateSearchQuery,
                         onNoteSelected = viewModel::selectNote,
                         onNewNote = viewModel::createNewNote,
-                        onOpenFile = viewModel::openFileDialog,
+                        onOpenFile = { openFileLauncher.launch(null) },
                         onDeleteNote = viewModel::deleteNote,
                         canPinMore = currentState.canPinMore,
                         onTogglePinNote = viewModel::togglePinNote,
@@ -152,6 +176,7 @@ fun MarkPadScreen(
                             editorFont = currentState.editorFont,
                             onContentChanged = viewModel::onContentChanged,
                             onCursorPositionChanged = viewModel::onCursorPositionChanged,
+                            scrollState = editorScrollState,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -165,6 +190,7 @@ fun MarkPadScreen(
                         PreviewPane(
                             markdown = currentState.previewMarkdown,
                             onTaskToggle = viewModel::toggleTaskItem,
+                            scrollState = previewScrollState,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -181,16 +207,6 @@ fun MarkPadScreen(
                     completedTasks = currentState.completedTaskCount,
                     totalTasks = currentState.totalTaskCount
                 )
-
-                // Open Markdown File Dialog
-                if (currentState.isOpenFileDialogOpen) {
-                    OpenFileDialog(
-                        onDismiss = viewModel::dismissOpenFileDialog,
-                        onFileSelected = { uri, source ->
-                            viewModel.openExternalFile(uri.toString(), source)
-                        }
-                    )
-                }
 
                 // Export Note Dialog
                 if (currentState.isExportDialogOpen && currentState.selectedNote != null) {

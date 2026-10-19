@@ -1,5 +1,6 @@
 package io.salmonllama.MarkPad.ui.components
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -18,6 +19,7 @@ import io.salmonllama.MarkPad.ui.markdown.MarkdownRenderer
 fun PreviewPane(
     markdown: String,
     onTaskToggle: (Int) -> Unit = {},
+    scrollState: ScrollState = rememberScrollState(),
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -27,7 +29,7 @@ fun PreviewPane(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(20.dp)
         ) {
             Text(

@@ -1,5 +1,6 @@
 package io.salmonllama.MarkPad.ui.components
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -44,14 +45,13 @@ fun EditorPane(
     editorFont: AppFont = AppFont.MONOSPACE,
     onContentChanged: (String) -> Unit,
     onCursorPositionChanged: (Int) -> Unit = {},
+    scrollState: ScrollState = rememberScrollState(),
     modifier: Modifier = Modifier
 ) {
     Surface(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
-        val scrollState = rememberScrollState()
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -122,22 +122,26 @@ fun EditorPane(
             LaunchedEffect(noteId, textLayoutResult, scrollState.maxValue) {
                 val layout = textLayoutResult ?: return@LaunchedEffect
                 if (!hasScrolledToInitialCursor) {
-                    if (scrollState.maxValue > 0) {
+                    val editorMax = scrollState.maxValue
+                    if (editorMax in 1 until Int.MAX_VALUE) {
                         val cursorTarget = safeInitialCursor.coerceIn(0, textFieldValue.text.length)
                         val cursorRect = layout.getCursorRect(cursorTarget)
                         val viewportHeight = scrollState.viewportSize
                         val targetScroll = if (viewportHeight > 0) {
                             (cursorRect.top - viewportHeight / 3f)
-                                .coerceIn(0f, scrollState.maxValue.toFloat())
+                                .coerceIn(0f, editorMax.toFloat())
                                 .toInt()
                         } else {
                             cursorRect.top
-                                .coerceIn(0f, scrollState.maxValue.toFloat())
+                                .coerceIn(0f, editorMax.toFloat())
                                 .toInt()
                         }
                         scrollState.scrollTo(targetScroll)
                         hasScrolledToInitialCursor = true
-                    } else if (layout.lineCount <= 1 || scrollState.maxValue == 0) {
+                    } else if (layout.lineCount <= 1 || editorMax == 0) {
+                        if (scrollState.value != 0) {
+                            scrollState.scrollTo(0)
+                        }
                         hasScrolledToInitialCursor = true
                     }
                 }

@@ -9,7 +9,7 @@ This document provides AI coding agents and LLM contributors with the architectu
 **MarkPad** is a desktop- and large-screen-optimized Markdown scratchpad and note manager for Android. It features a 3-pane horizontal workspace (Sidebar, Editor, Collapsible Live Preview), live-linked external file editing (Local storage, Linux VM environment, Google Drive), interactive task checklists, customizable themes/typography, and native export to `.pdf`, `.docx`, and `.md`.
 
 - **Application ID / Namespace**: `io.salmonllama.MarkPad` (`.debug` suffix on debug builds)
-- **Current Version**: `1.4.3` (`versionCode = 13`)
+- **Current Version**: `1.5.0` (`versionCode = 15`)
 - **Language & Toolchain**: Kotlin 2.0 (`jvmTarget = "17"`), Java 17, Android Gradle Plugin (AGP), KSP (`com.google.devtools.ksp`)
 - **Android SDK Levels**: `compileSdk = 36`, `targetSdk = 36`, `minSdk = 26` (Android 8.0+)
 - **UI Framework**: Jetpack Compose (`androidx.compose:compose-bom:2024.09.00`) + Material 3 + Material Icons Extended
@@ -80,9 +80,10 @@ app/src/
 │       │   │   ├── EditorPane.kt            # Center pane: BasicTextField, cursor scroll restoration, echo suppression, Shift+Delete hotkey
 │       │   │   ├── PreviewPane.kt           # Right pane: scrollable surface wrapping MarkdownRenderer
 │       │   │   ├── StatusFooter.kt          # Bottom bar: note/word/char/task counts, linked file indicator, save status
-│       │   │   ├── OpenFileDialog.kt        # SAF document picker launcher scoped by FileSource initial URI
+│       │   │   ├── OpenFileDialog.kt        # Direct SAF document picker launcher contract (OpenMarkdownDocumentContract)
 │       │   │   ├── ExportNoteDialog.kt      # Format selector (.pdf, .docx, .md) + CreateDocument SAF launcher
-│       │   │   └── SettingsDialog.kt        # Theme, Editor Font, and UI Chrome Font selector dialog
+│       │   │   ├── SettingsDialog.kt        # Theme, Editor Font, and UI Chrome Font selector dialog
+│       │   │   └── SynchronizedScrollCoordinator.kt # Bidirectional scroll sync coordinator, driver state machine, and math helpers
 │       │   ├── markdown/
 │       │   │   ├── MarkdownParser.kt        # Block-level GFM AST parser (Header 1..6, Paragraph, BulletItem, OrderedItem, TaskItem, CodeBlock, Blockquote, AlertBlock, DetailsBlock, FootnoteDefinition, HorizontalRule, Table, Reference links)
 │       │   │   ├── InlineMarkdownParser.kt  # Inline GFM span parser (Normal, Bold, Italic, BoldItalic, Strikethrough, InlineCode, Highlight, Underline, KeyboardKey, Superscript, Subscript, Link, Image, FootnoteReference, Escapes, Emojis)
@@ -184,6 +185,18 @@ Markdown parsing is split into two stages:
 - Editor-specific shortcuts in `ui/components/EditorPane.kt`:
   - `Shift + Delete`: Deletes the entire line at the current cursor position (`deleteLineAtCursor`), preserving column offset. Tested in `EditorLineDeleteTest.kt`.
   - `Shift + Backspace`: Normal backspace operation (`backspaceAtCursor`), deleting selected text or the preceding character/grapheme cluster (including UTF-16 surrogate pairs and CRLF line breaks). Tested in `EditorBackspaceTest.kt`.
+
+### 4.9 Synchronous Scrolling & Mutual Exclusion Driver
+- `MarkPadScreen` coordinates bidirectional scroll synchronization between `EditorPane` and `PreviewPane` using `SynchronizedScrollCoordinator`.
+- **Proportional Mapping**: Because plain text height and rendered Markdown height naturally differ, synchronization maps normalized progress: `fraction = scroll / maxScroll` $\in [0.0, 1.0]$.
+- **Mutual Exclusion Driver State Machine (`ScrollDriver: NONE, EDITOR, PREVIEW`)**:
+  - Programmatic `scrollTo` in Compose acquires the scroll mutex and triggers `isScrollInProgress = true`.
+  - To prevent infinite feedback loops and gesture stuttering, the active driver (`EDITOR` or `PREVIEW`) is locked upon gesture start and unlocked upon completion; the follower pane ignores incoming listener callbacks while being driven.
+- **Note Open Location Alignment**:
+  - `editorScrollState` and `previewScrollState` are keyed by `noteId` via `rememberSaveable(noteId, saver = ScrollState.Saver) { ScrollState(0) }`.
+  - For new notes or notes with cursor at top, both panes cleanly initialize at 0.
+  - When an existing note restores a cursor position $> 0$, `EditorPane` scrolls to the cursor target and `SynchronizedScrollCoordinator` synchronizes `PreviewPane` to the matching relative location once layouts are measured.
+  - Pure calculation helpers (`calculateScrollFraction`, `calculateTargetScroll`, `calculateSynchronizedTarget`, `canAcquireDriver`) are tested in `SynchronizedScrollTest.kt`.
 
 ---
 

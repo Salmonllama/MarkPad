@@ -68,7 +68,6 @@ class NoteViewModel(
     private val _saveStatus = MutableStateFlow<SaveStatus>(SaveStatus.Saved)
     private val _statusNotification = MutableStateFlow<String?>(null)
     private val _isExportDialogOpen = MutableStateFlow(false)
-    private val _isOpenFileDialogOpen = MutableStateFlow(false)
     private val _appTheme = MutableStateFlow(preferencesRepository.getAppTheme())
     private val _editorFont = MutableStateFlow(preferencesRepository.getEditorFont())
     private val _uiFont = MutableStateFlow(preferencesRepository.getUiFont())
@@ -114,18 +113,16 @@ class NoteViewModel(
         val appTheme: AppTheme,
         val editorFont: AppFont,
         val uiFont: AppFont,
-        val isSettingsDialogOpen: Boolean,
-        val isOpenFileDialogOpen: Boolean
+        val isSettingsDialogOpen: Boolean
     )
 
     private val _settingsState = combine(
         _appTheme,
         _editorFont,
         _uiFont,
-        _isSettingsDialogOpen,
-        _isOpenFileDialogOpen
-    ) { theme, editorFont, uiFont, isSettingsDialogOpen, isOpenFileDialogOpen ->
-        SettingsControlState(theme, editorFont, uiFont, isSettingsDialogOpen, isOpenFileDialogOpen)
+        _isSettingsDialogOpen
+    ) { theme, editorFont, uiFont, isSettingsDialogOpen ->
+        SettingsControlState(theme, editorFont, uiFont, isSettingsDialogOpen)
     }
 
     val uiState: StateFlow<NoteUiState> = combine(
@@ -168,7 +165,6 @@ class NoteViewModel(
             saveStatus = controls.saveState,
             statusMessage = controls.message,
             isExportDialogOpen = controls.isExportDialogOpen,
-            isOpenFileDialogOpen = settings.isOpenFileDialogOpen,
             cursorPosition = safeCursor,
             appTheme = settings.appTheme,
             editorFont = settings.editorFont,
@@ -371,14 +367,6 @@ class NoteViewModel(
         }
     }
 
-    fun openFileDialog() {
-        _isOpenFileDialogOpen.value = true
-    }
-
-    fun dismissOpenFileDialog() {
-        _isOpenFileDialogOpen.value = false
-    }
-
     fun openExternalFile(uriString: String, preferredSource: FileSource? = null) {
         viewModelScope.launch {
             flushPendingSave()
@@ -414,7 +402,6 @@ class NoteViewModel(
                     }
 
                     repository.saveNote(targetNote)
-                    _isOpenFileDialogOpen.value = false
                     _selectedNoteId.value = targetNote.id
                     preferencesRepository.setLastOpenedNoteId(targetNote.id)
                     val restoredCursor = if (existingNote != null) {

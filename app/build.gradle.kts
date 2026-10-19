@@ -13,8 +13,8 @@ android {
         applicationId = "io.salmonllama.MarkPad"
         minSdk = 26
         targetSdk = 36
-        versionCode = 13
-        versionName = "1.4.3"
+        versionCode = 15
+        versionName = "1.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
